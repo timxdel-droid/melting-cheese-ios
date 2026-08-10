@@ -4,22 +4,17 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-
     # Apple Developer Portal key already connected to this Codemagic account.
     integrations:
       app_store_connect: TRT_ASC_KEY
 
-
     environment:
       xcode: latest
       vars:
+        BUNDLE_ID: "food.meltingcheese.app"
         XCODE_SCHEME: "MeltingCheese"
         XCODE_PROJECT: "MeltingCheese.xcodeproj"
         APP_STORE_APP_ID: 6799911811
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: food.meltingcheese.app
-
 
     triggering:
       events:
@@ -29,13 +24,57 @@ workflows:
           include: true
           source: true
 
-
     scripts:
       - name: Install XcodeGen
         script: |
           brew install xcodegen
 
-
       - name: Generate Xcode project
         script: |
           xcodegen generate --spec project.yml
+
+      - name: Create signing certificate and profile
+        script: |
+          # --create makes the distribution certificate and provisioning profile
+          # the first time this brand-new bundle id is built.
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Add certificates to keychain
+        script: |
+          keychain initialize
+          keychain add-certificates
+
+      - name: Apply provisioning profiles
+        script: |
+          xcode-project use-profiles
+
+      - name: Set build number from TestFlight
+        script: |
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo "0")
+          NEXT=$(($LATEST + 1))
+          echo "Using build number $NEXT"
+          agvtool new-version -all $NEXT
+
+      - name: Build ipa
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - pantherdxpro@gmail.com
+        notify:
+          success: true
+          failure: true
