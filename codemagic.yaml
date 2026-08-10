@@ -10,9 +10,11 @@ workflows:
 
     environment:
       xcode: latest
-      groups:
-        # Codemagic variable group holding CERTIFICATE_PRIVATE_KEY (secure).
-        - appstore
+      # Automatic code signing: Codemagic uses the stored distribution
+      # certificate for the Kingshill team and manages the profile.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: food.meltingcheese.app
       vars:
         BUNDLE_ID: "food.meltingcheese.app"
         XCODE_SCHEME: "MeltingCheese"
@@ -71,26 +73,6 @@ workflows:
       - name: Generate Xcode project
         script: |
           xcodegen generate --spec project.yml
-
-      - name: Create signing certificate and profile
-        script: |
-          set -e
-          if [ -z "$CERTIFICATE_PRIVATE_KEY" ]; then
-            echo "ERROR: CERTIFICATE_PRIVATE_KEY is not set."
-            echo "Apple caps the number of Distribution certificates, so builds must"
-            echo "reuse ONE persistent private key rather than generating a new one."
-            echo "Generate a key locally:"
-            echo "  ssh-keygen -t rsa -b 2048 -m PEM -f cert_key -q -N \"\""
-            echo "then add the contents of cert_key to Codemagic as a SECURE variable"
-            echo "named CERTIFICATE_PRIVATE_KEY inside the variable group 'appstore'."
-            exit 1
-          fi
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --certificate-key=@env:CERTIFICATE_PRIVATE_KEY --create
-
-      - name: Add certificates to keychain
-        script: |
-          keychain initialize
-          keychain add-certificates
 
       - name: Apply provisioning profiles
         script: |
