@@ -5,18 +5,17 @@ workflows:
     max_build_duration: 60
 
     environment:
-      groups:
-        # Create this group in Codemagic (Teams -> Integrations / Environment variables)
-        # and add: APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER,
-        #          APP_STORE_CONNECT_PRIVATE_KEY, CERTIFICATE_PRIVATE_KEY
-        - appstore_credentials
+      xcode: latest
       vars:
-        BUNDLE_ID: "food.meltingcheese.app"
         XCODE_SCHEME: "MeltingCheese"
         XCODE_PROJECT: "MeltingCheese.xcodeproj"
         APP_STORE_APP_ID: 6798319040
-      xcode: latest
-      cocoapods: default
+      # Uses the Apple Developer Portal key already connected to this Codemagic account.
+      integrations:
+        app_store_connect: TRT_ASC_KEY
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: food.meltingcheese.app
 
     triggering:
       events:
@@ -34,26 +33,13 @@ workflows:
       - name: Generate Xcode project
         script: |
           xcodegen generate --spec project.yml
-          ls -la
 
-      - name: Set build number from Codemagic
+      - name: Set build number from TestFlight
         script: |
-          cd $CM_BUILD_DIR
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo "0")
           NEXT=$(($LATEST + 1))
           echo "Using build number $NEXT"
           agvtool new-version -all $NEXT
-
-      - name: Fetch signing files
-        script: |
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create
-
-      - name: Add certificates to keychain
-        script: |
-          keychain initialize
-          keychain add-certificates
 
       - name: Apply provisioning profiles
         script: |
@@ -74,9 +60,6 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        # Add internal tester group names here once they exist in App Store Connect:
-        # beta_groups:
-        #   - Internal Testers
       email:
         recipients:
           - pantherdxpro@gmail.com
