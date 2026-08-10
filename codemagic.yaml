@@ -4,19 +4,22 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
+
     # Apple Developer Portal key already connected to this Codemagic account.
     integrations:
       app_store_connect: TRT_ASC_KEY
+
 
     environment:
       xcode: latest
       vars:
         XCODE_SCHEME: "MeltingCheese"
         XCODE_PROJECT: "MeltingCheese.xcodeproj"
-        APP_STORE_APP_ID: 6798319040
+        APP_STORE_APP_ID: 6799911811
       ios_signing:
         distribution_type: app_store
         bundle_identifier: food.meltingcheese.app
+
 
     triggering:
       events:
@@ -26,44 +29,13 @@ workflows:
           include: true
           source: true
 
+
     scripts:
       - name: Install XcodeGen
         script: |
           brew install xcodegen
 
+
       - name: Generate Xcode project
         script: |
           xcodegen generate --spec project.yml
-
-      - name: Set build number from TestFlight
-        script: |
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo "0")
-          NEXT=$(($LATEST + 1))
-          echo "Using build number $NEXT"
-          agvtool new-version -all $NEXT
-
-      - name: Apply provisioning profiles
-        script: |
-          xcode-project use-profiles
-
-      - name: Build ipa
-        script: |
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
-
-    artifacts:
-      - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
-
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
-      email:
-        recipients:
-          - pantherdxpro@gmail.com
-        notify:
-          success: true
-          failure: true
