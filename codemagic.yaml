@@ -25,6 +25,42 @@ workflows:
           source: true
 
     scripts:
+      - name: Ensure app icon exists
+        script: |
+          set -e
+          ICON_DIR=MeltingCheese/Assets.xcassets/AppIcon.appiconset
+          ICON="$ICON_DIR/AppIcon-1024.png"
+          mkdir -p "$ICON_DIR"
+          if [ -f "$ICON" ]; then echo "Using the committed app icon."; exit 0; fi
+          echo "No icon committed - generating a branded placeholder."
+          pip3 install --quiet --disable-pip-version-check pillow
+          cat > /tmp/mkicon.py <<'PYEOF'
+          import sys
+          from PIL import Image, ImageDraw
+          S = 1024
+          img = Image.new('RGB', (S, S), (14, 12, 10))
+          d = ImageDraw.Draw(img, 'RGBA')
+          cx, cy = S // 2, int(S * 0.47)
+          w, h, depth = int(S * 0.30), int(S * 0.17), int(S * 0.22)
+          top = [(cx, cy - h * 2), (cx + w, cy - h), (cx, cy), (cx - w, cy)]
+          left = [(cx - w, cy), (cx, cy), (cx, cy + depth), (cx - w, cy + depth - h)]
+          right = [(cx, cy), (cx + w, cy - h), (cx + w, cy + depth - h), (cx, cy + depth)]
+          d.polygon(right, fill=(214, 113, 22))
+          d.polygon(left, fill=(232, 133, 32))
+          d.polygon(top, fill=(245, 166, 35))
+          for hx, hy, r in [(cx - 70, cy - 150, 58), (cx + 95, cy - 95, 44), (cx - 10, cy - 60, 36)]:
+              d.ellipse([hx - r, hy - r // 2, hx + r, hy + r // 2], fill=(196, 104, 18))
+          dy = cy + depth
+          d.rounded_rectangle([cx - w, dy - 30, cx + w, dy + 34], radius=26, fill=(245, 166, 35))
+          for dx, dl, dr in [(-150, 120, 40), (-30, 180, 52), (110, 140, 44)]:
+              x = cx + dx
+              d.rounded_rectangle([x - dr // 2, dy, x + dr // 2, dy + dl], radius=dr // 2, fill=(245, 166, 35))
+              d.ellipse([x - dr // 2, dy + dl - dr // 2, x + dr // 2, dy + dl + dr // 2], fill=(245, 166, 35))
+          img.save(sys.argv[1])
+          PYEOF
+          python3 /tmp/mkicon.py "$ICON"
+          echo "Icon written to $ICON"
+
       - name: Install XcodeGen
         script: |
           brew install xcodegen
@@ -36,9 +72,6 @@ workflows:
       - name: Create signing certificate and profile
         script: |
           set -e
-          # Creating a distribution certificate requires a private key.
-          # Use CERTIFICATE_PRIVATE_KEY if it is configured, otherwise generate
-          # a key for this build so the very first run can bootstrap signing.
           if [ -z "$CERTIFICATE_PRIVATE_KEY" ]; then
             ssh-keygen -t rsa -b 2048 -m PEM -f /tmp/cert_key -q -N ""
             app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --certificate-key=@file:/tmp/cert_key --create
