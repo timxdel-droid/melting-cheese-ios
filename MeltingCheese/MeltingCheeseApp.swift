@@ -5,16 +5,14 @@ struct MeltingCheeseApp: App {
     @StateObject private var menu = MenuViewModel()
     @StateObject private var order = OrderStore()
 
-    init() {
-        configureAppearance()
-    }
+    init() { configureAppearance() }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(menu)
                 .environmentObject(order)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
                 .tint(Brand.orange)
         }
     }
@@ -22,16 +20,16 @@ struct MeltingCheeseApp: App {
     private func configureAppearance() {
         let nav = UINavigationBarAppearance()
         nav.configureWithOpaqueBackground()
-        nav.backgroundColor = UIColor(Brand.ink)
-        nav.titleTextAttributes = [.foregroundColor: UIColor.white]
-        nav.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        nav.backgroundColor = UIColor(Brand.bg)
+        nav.shadowColor = .clear
+        nav.titleTextAttributes = [.foregroundColor: UIColor(Brand.textPrimary)]
+        nav.largeTitleTextAttributes = [.foregroundColor: UIColor(Brand.textPrimary)]
         UINavigationBar.appearance().standardAppearance = nav
         UINavigationBar.appearance().scrollEdgeAppearance = nav
-        UINavigationBar.appearance().compactAppearance = nav
 
         let tab = UITabBarAppearance()
         tab.configureWithOpaqueBackground()
-        tab.backgroundColor = UIColor(Brand.ink)
+        tab.backgroundColor = UIColor(Brand.bg)
         UITabBar.appearance().standardAppearance = tab
         UITabBar.appearance().scrollEdgeAppearance = tab
     }
@@ -40,22 +38,33 @@ struct MeltingCheeseApp: App {
 struct RootView: View {
     @EnvironmentObject private var menu: MenuViewModel
     @EnvironmentObject private var order: OrderStore
+    @State private var tab = 0
 
     var body: some View {
-        TabView {
-            HomeView()
+        TabView(selection: $tab) {
+            HomeView(switchTab: { tab = $0 })
                 .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(0)
 
-            MenuView()
-                .tabItem { Label("Menu", systemImage: "fork.knife") }
+            SearchView()
+                .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                .tag(1)
 
-            OrderView()
-                .tabItem { Label("My Order", systemImage: "bag.fill") }
+            OrdersView()
+                .tabItem { Label("Orders", systemImage: "doc.text") }
+                .tag(2)
+
+            CartView(switchTab: { tab = $0 })
+                .tabItem { Label("Cart", systemImage: "cart") }
                 .badge(order.itemCount)
+                .tag(3)
+
+            AccountView()
+                .tabItem { Label("Account", systemImage: "person") }
+                .tag(4)
         }
         .task {
             if menu.sections.isEmpty { await menu.load() }
         }
     }
 }
-
