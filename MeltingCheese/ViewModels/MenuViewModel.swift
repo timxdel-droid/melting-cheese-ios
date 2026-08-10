@@ -23,6 +23,17 @@ final class MenuViewModel: ObservableObject {
 
     var categories: [String] { sections.map(\.title) }
 
+    /// Every product, flattened - used by search and the "popular" grid.
+    var allProducts: [Product] {
+        sections.flatMap(\.products)
+    }
+
+    /// Products with a real price and image, capped for the home grid.
+    var popular: [Product] {
+        let priced = allProducts.filter { $0.prices.amount != nil && $0.imageURL != nil }
+        return Array((priced.isEmpty ? allProducts : priced).prefix(6))
+    }
+
     /// Sections after applying the category chip and the search field.
     var visibleSections: [MenuSection] {
         let base = selectedCategory.map { name in
@@ -40,16 +51,29 @@ final class MenuViewModel: ObservableObject {
         }
     }
 
+    /// Flat product list for the menu list pane.
+    var visibleProducts: [Product] {
+        visibleSections.flatMap(\.products)
+    }
+
+    /// Free-text search across the whole catalogue.
+    func searchResults(_ query: String) -> [Product] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return [] }
+        return allProducts.filter {
+            $0.name.lowercased().contains(q) || $0.blurb.lowercased().contains(q)
+        }
+    }
+
     var isEmptyResult: Bool {
-        state == .loaded && visibleSections.allSatisfy { $0.products.isEmpty }
+        state == .loaded && visibleProducts.isEmpty
     }
 
     func load() async {
         if case .loading = state { return }
         state = .loading
         do {
-            let fetched = try await service.fetchSections()
-            sections = fetched
+            sections = try await service.fetchSections()
             state = .loaded
         } catch {
             state = .failed(error.localizedDescription)
@@ -61,9 +85,7 @@ final class MenuViewModel: ObservableObject {
             sections = try await service.fetchSections()
             state = .loaded
         } catch {
-            // Keep showing the cached menu; surface the error only if we have nothing.
             if sections.isEmpty { state = .failed(error.localizedDescription) }
         }
     }
 }
-
