@@ -35,11 +35,16 @@ workflows:
 
       - name: Create signing certificate and profile
         script: |
-          # --create makes the distribution certificate and provisioning profile
-          # the first time this brand-new bundle id is built.
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create
+          set -e
+          # Creating a distribution certificate requires a private key.
+          # Use CERTIFICATE_PRIVATE_KEY if it is configured, otherwise generate
+          # a key for this build so the very first run can bootstrap signing.
+          if [ -z "$CERTIFICATE_PRIVATE_KEY" ]; then
+            ssh-keygen -t rsa -b 2048 -m PEM -f /tmp/cert_key -q -N ""
+            app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --certificate-key=@file:/tmp/cert_key --create
+          else
+            app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --certificate-key=@env:CERTIFICATE_PRIVATE_KEY --create
+          fi
 
       - name: Add certificates to keychain
         script: |
@@ -59,9 +64,7 @@ workflows:
 
       - name: Build ipa
         script: |
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
+          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
 
     artifacts:
       - build/ios/ipa/*.ipa
