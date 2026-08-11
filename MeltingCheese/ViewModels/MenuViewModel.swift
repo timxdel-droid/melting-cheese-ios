@@ -21,24 +21,23 @@ final class MenuViewModel: ObservableObject {
         self.service = service
     }
 
-    var categories: [String] { sections.map(\.title) }
+    /// Live catalogue plus the in-app drink aisles.
+    var aisles: [MenuSection] {
+        sections + DrinksCatalogue.sections
+    }
 
-    /// Every product, flattened - used by search and the "popular" grid.
+    var categories: [String] { aisles.map(\.title) }
+
+    /// Every product, flattened - used by search and the aisle rows.
     var allProducts: [Product] {
-        sections.flatMap(\.products)
+        aisles.flatMap(\.products)
     }
 
-    /// Products with a real price and image, capped for the home grid.
-    var popular: [Product] {
-        let priced = allProducts.filter { $0.prices.amount != nil && $0.imageURL != nil }
-        return Array((priced.isEmpty ? allProducts : priced).prefix(6))
-    }
-
-    /// Sections after applying the category chip and the search field.
+    /// Sections after applying the category selection and the search field.
     var visibleSections: [MenuSection] {
         let base = selectedCategory.map { name in
-            sections.filter { $0.title == name }
-        } ?? sections
+            aisles.filter { $0.title == name }
+        } ?? aisles
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !query.isEmpty else { return base }
