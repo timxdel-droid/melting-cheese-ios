@@ -9,6 +9,9 @@ import SwiftUI
 @MainActor
 final class OrderStore: ObservableObject {
 
+    /// How long the kitchen needs before an order can be collected.
+    static let prepTime: TimeInterval = 15 * 60
+
     // MARK: - Add-ons
 
     struct AddOn: Identifiable, Hashable {
@@ -27,7 +30,7 @@ final class OrderStore: ObservableObject {
     // MARK: - Cart
 
     struct Line: Identifiable, Hashable {
-        let id: String              // productID + addon signature
+        let id: String
         let productID: Int
         let name: String
         let imageURL: URL?
@@ -50,6 +53,7 @@ final class OrderStore: ObservableObject {
     struct Order: Identifiable, Hashable {
         let id: String
         let placedAt: Date
+        let readyAt: Date
         let lines: [Line]
         let total: Decimal
         let currency: String
@@ -122,8 +126,10 @@ final class OrderStore: ObservableObject {
     @discardableResult
     func placeOrder() -> Order? {
         guard !lines.isEmpty else { return nil }
+        let now = Date()
         let order = Order(id: UUID().uuidString,
-                          placedAt: Date(),
+                          placedAt: now,
+                          readyAt: now.addingTimeInterval(Self.prepTime),
                           lines: lines,
                           total: total,
                           currency: currencyCode)
