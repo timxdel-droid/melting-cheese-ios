@@ -126,6 +126,23 @@ struct HomeView: View {
         }
     }
 
+    // Shared by MenuView and SearchView for category chips and rails.
+    static func emoji(for category: String) -> String {
+        let c = category.lowercased()
+        if c.contains("combo") { return "🔥" }
+        if c.contains("main") { return "🍛" }
+        if c.contains("wing") || c.contains("bite") { return "🍗" }
+        if c.contains("wrap") { return "🌯" }
+        if c.contains("malt") { return "🍺" }
+        if c.contains("soda") || c.contains("drink") { return "🥤" }
+        if c.contains("add") { return "🧀" }
+        return "🍴"
+    }
+
+    static func shortName(_ name: String) -> String {
+        name.replacingOccurrences(of: "Signature Food ", with: "")
+    }
+
     @ViewBuilder
     private var aisles: some View {
         switch vm.state {
