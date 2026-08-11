@@ -60,12 +60,16 @@ extension View {
 
 /// Full-width amber action button.
 struct PrimaryButtonStyle: ButtonStyle {
+    /// Full-width by default; set false for a button that hugs its label.
+    var expands: Bool = true
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .bold))
+            .font(.system(size: expands ? 15 : 14, weight: .bold))
             .foregroundColor(.white)
-            .padding(.vertical, 15)
-            .frame(maxWidth: .infinity)
+            .padding(.vertical, expands ? 15 : 12)
+            .padding(.horizontal, expands ? 0 : 18)
+            .frame(maxWidth: expands ? .infinity : nil)
             .background(Brand.orange)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .opacity(configuration.isPressed ? 0.85 : 1)
