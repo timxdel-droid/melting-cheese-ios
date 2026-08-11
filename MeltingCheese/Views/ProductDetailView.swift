@@ -150,8 +150,10 @@ struct ProductDetailView: View {
     }
 
     private var bottomBar: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             QuantityStepper(quantity: $quantity)
+
+            Spacer(minLength: 8)
 
             Button {
                 order.add(product,
@@ -161,15 +163,17 @@ struct ProductDetailView: View {
                 withAnimation { added = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { dismiss() }
             } label: {
-                HStack {
+                HStack(spacing: 7) {
                     Text(added ? "Added ✓" : "Add to Cart")
-                    Spacer()
-                    if let total = lineTotal {
+                    if let total = lineTotal, !added {
+                        Text("·")
+                            .opacity(0.6)
                         Text(order.format(total, currency: product.prices.currencyCode))
                     }
                 }
+                .lineLimit(1)
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle(expands: false))
             .disabled(!product.isInStock)
             .opacity(product.isInStock ? 1 : 0.5)
         }
