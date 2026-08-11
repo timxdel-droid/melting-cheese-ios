@@ -1,11 +1,60 @@
 import Foundation
 import SwiftUI
 
+/// How the guest chose to pay.
+///
+/// All three are selectable, but nothing charges a card yet - the PayTabs
+/// gateway is not wired up. Orders placed with Apple Pay or card are recorded
+/// with that preference and settled at the window, so the app never claims a
+/// payment that did not happen.
+enum PaymentMethod: String, CaseIterable, Identifiable, Hashable {
+    case applePay
+    case card
+    case atTruck
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .applePay: return "Apple Pay"
+        case .card: return "Credit or debit card"
+        case .atTruck: return "Cash"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .applePay: return "Tap to pay when you collect"
+        case .card: return "Card machine at the window"
+        case .atTruck: return "Pay at the window"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .applePay: return "apple.logo"
+        case .card: return "creditcard.fill"
+        case .atTruck: return "banknote"
+        }
+    }
+
+    /// Short badge for the order list.
+    var badge: String {
+        switch self {
+        case .applePay: return "Apple Pay"
+        case .card: return "Card"
+        case .atTruck: return "Cash"
+        }
+    }
+
+    /// Flips to true per-method once a real gateway charges in-app. Nothing does yet.
+    var chargesInApp: Bool { false }
+}
+
 /// Cart + order history.
 ///
-/// Deliberately local-only: there is no payment processing in the app. Guests
-/// build an order and pay at the truck, which keeps us clear of Apple's rules
-/// around in-app purchase and avoids shipping a fake checkout.
+/// Deliberately local-only: no card is charged inside the app. Guests build an
+/// order, choose how they intend to pay, and settle at the truck.
 @MainActor
 final class OrderStore: ObservableObject {
 
@@ -57,10 +106,14 @@ final class OrderStore: ObservableObject {
         let lines: [Line]
         let total: Decimal
         let currency: String
+        let paymentMethod: PaymentMethod
 
         var itemCount: Int { lines.reduce(0) { $0 + $1.quantity } }
 
         var reference: String { "MC-" + id.prefix(6).uppercased() }
+
+        /// Nothing is charged in-app yet, so every order is awaiting payment.
+        var isAwaitingPayment: Bool { !paymentMethod.chargesInApp }
     }
 
     @Published private(set) var lines: [Line] = []
@@ -124,7 +177,7 @@ final class OrderStore: ObservableObject {
     // MARK: - Placing an order
 
     @discardableResult
-    func placeOrder() -> Order? {
+    func placeOrder(method: PaymentMethod = .atTruck) -> Order? {
         guard !lines.isEmpty else { return nil }
         let now = Date()
         let order = Order(id: UUID().uuidString,
@@ -132,7 +185,8 @@ final class OrderStore: ObservableObject {
                           readyAt: now.addingTimeInterval(Self.prepTime),
                           lines: lines,
                           total: total,
-                          currency: currencyCode)
+                          currency: currencyCode,
+                          paymentMethod: method)
         orders.insert(order, at: 0)
         lines.removeAll()
         return order
