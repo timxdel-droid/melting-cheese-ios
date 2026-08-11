@@ -62,7 +62,18 @@ struct CheckoutView: View {
         .navigationTitle("Checkout")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $placed) { confirmed in
-            OrderPlacedView(order: confirmed) { dismiss() }
+            NavigationStack {
+                CollectionView(order: confirmed)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                placed = nil
+                                dismiss()
+                            }
+                            .foregroundColor(Brand.orange)
+                        }
+                    }
+            }
         }
     }
 
@@ -119,57 +130,5 @@ struct CheckoutView: View {
         .padding(.vertical, 12)
         .background(.regularMaterial)
         .disabled(order.lines.isEmpty)
-    }
-}
-
-/// Shown after placing an order - the reference the guest shows at the truck.
-struct OrderPlacedView: View {
-    let order: OrderStore.Order
-    var onDone: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var store: OrderStore
-
-    var body: some View {
-        VStack(spacing: 18) {
-            Spacer()
-
-            ZStack {
-                Circle().fill(Brand.amberSoft).frame(width: 84, height: 84)
-                Image(systemName: "checkmark")
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundColor(Brand.orange)
-            }
-
-            Text("Order ready to collect")
-                .font(.system(size: 19, weight: .bold))
-
-            Text("Show this reference at the truck.\nPayment is taken in person.")
-                .font(.system(size: 13))
-                .foregroundColor(Brand.textSecondary)
-                .multilineTextAlignment(.center)
-
-            Text(order.reference)
-                .font(.system(size: 26, weight: .heavy, design: .monospaced))
-                .foregroundColor(Brand.textPrimary)
-                .padding(.horizontal, 26).padding(.vertical, 14)
-                .background(Brand.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            Text("\(order.itemCount) item\(order.itemCount == 1 ? "" : "s") · \(store.format(order.total, currency: order.currency))")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Brand.textSecondary)
-
-            Spacer()
-
-            Button("Done") {
-                dismiss()
-                onDone()
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding(.horizontal, 24)
-            .padding(.bottom, 20)
-        }
-        .padding()
     }
 }
