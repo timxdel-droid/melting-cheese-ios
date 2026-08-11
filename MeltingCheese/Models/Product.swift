@@ -20,6 +20,28 @@ struct Product: Identifiable, Decodable, Hashable {
         case isInStock = "is_in_stock"
     }
 
+    /// Memberwise init so items defined in the app (see DrinksCatalogue) share
+    /// the same type as items decoded from the API.
+    init(id: Int,
+         name: String,
+         permalink: String?,
+         shortDescription: String,
+         description: String,
+         prices: Prices,
+         images: [ProductImage],
+         categories: [ProductCategory],
+         isInStock: Bool) {
+        self.id = id
+        self.name = name
+        self.permalink = permalink
+        self.shortDescription = shortDescription
+        self.description = description
+        self.prices = prices
+        self.images = images
+        self.categories = categories
+        self.isInStock = isInStock
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(Int.self, forKey: .id)
@@ -66,6 +88,17 @@ struct Prices: Decodable, Hashable {
         case currencyMinorUnit = "currency_minor_unit"
         case currencyDecimalSeparator = "currency_decimal_separator"
         case currencyThousandSeparator = "currency_thousand_separator"
+    }
+
+    /// Convenience for prices defined in the app rather than decoded.
+    init(minorUnits: Int, currencyCode: String) {
+        self.price = String(minorUnits)
+        self.regularPrice = String(minorUnits)
+        self.salePrice = String(minorUnits)
+        self.currencyCode = currencyCode
+        self.currencyMinorUnit = 2
+        self.currencyDecimalSeparator = "."
+        self.currencyThousandSeparator = ","
     }
 
     init(from decoder: Decoder) throws {
@@ -146,4 +179,3 @@ extension String {
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
-
