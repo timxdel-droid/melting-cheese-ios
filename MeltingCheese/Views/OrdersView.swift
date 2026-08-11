@@ -89,6 +89,21 @@ struct OrderCard: View {
 
             Divider().overlay(Brand.line)
 
+            HStack(spacing: 6) {
+                Image(systemName: order.paymentMethod.icon)
+                    .font(.system(size: 11))
+                    .foregroundColor(Brand.textSecondary)
+                Text(order.paymentMethod.badge)
+                    .font(.system(size: 12))
+                    .foregroundColor(Brand.textSecondary)
+                if order.isAwaitingPayment {
+                    Text("· due at collection")
+                        .font(.system(size: 11))
+                        .foregroundColor(Brand.textMuted)
+                }
+                Spacer()
+            }
+
             HStack {
                 Text("\(order.itemCount) item\(order.itemCount == 1 ? "" : "s")")
                     .font(.system(size: 12))
