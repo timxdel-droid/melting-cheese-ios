@@ -18,7 +18,7 @@ struct CollectionView: View {
                     countdownCard
                     qrCard
                     itemsCard
-                    Text("Show this screen to staff at the truck.\nPayment is taken in person.")
+                    Text("Show this screen to staff at the truck.\nPayment is taken at the window.")
                         .font(.system(size: 12))
                         .foregroundColor(Brand.textMuted)
                         .multilineTextAlignment(.center)
@@ -129,6 +129,25 @@ struct CollectionView: View {
                 Text(store.format(order.total, currency: order.currency))
                     .font(.system(size: 15, weight: .bold))
             }
+
+            Divider().overlay(Brand.line)
+
+            HStack(spacing: 8) {
+                Image(systemName: order.paymentMethod.icon)
+                    .font(.system(size: 13))
+                    .foregroundColor(Brand.orange)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Paying by \(order.paymentMethod.badge)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Brand.textPrimary)
+                    if order.isAwaitingPayment {
+                        Text("Not yet charged — settle at the window")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(Brand.textMuted)
+                    }
+                }
+                Spacer()
+            }
         }
         .padding(14)
         .cardStyle()
@@ -177,4 +196,3 @@ struct SocialFollowBar: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
-
