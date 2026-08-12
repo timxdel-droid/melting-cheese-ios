@@ -24,13 +24,22 @@ actor MenuService {
 
     /// Order categories the way the website presents them; anything new
     /// from WooCommerce is appended afterwards instead of being dropped.
+    ///
+    /// The five drink aisles are listed in the order the menu is meant to read,
+    /// not alphabetically - without them here they would sort as Basic, Classic
+    /// Premium, Malt, Premium, Special.
     private let preferredOrder = [
         "Signature Food Combos",
         "Main Meals",
         "Wings & Bites",
         "Wraps",
         "Add-Ons",
-        "Drinks"
+        "Drinks",
+        "Basic Soda",
+        "Special Sodas",
+        "Classic Premium Soda",
+        "Malt Drinks",
+        "Premium Soda"
     ]
 
     init(session: URLSession = .shared) {
@@ -83,4 +92,3 @@ actor MenuService {
         }
     }
 }
-
