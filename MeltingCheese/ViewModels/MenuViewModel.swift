@@ -22,18 +22,30 @@ final class MenuViewModel: ObservableObject {
     }
 
     /// Live catalogue plus the in-app drink aisles.
+    ///
+    /// A hardcoded drink aisle stands down as soon as a category of the same
+    /// name arrives from WooCommerce, so importing the drinks to the website
+    /// cannot produce duplicate aisles - whatever order the import and the
+    /// next app release happen in.
     var aisles: [MenuSection] {
-        sections + DrinksCatalogue.sections
+        let live = Set(sections.map(\.title))
+        return sections + DrinksCatalogue.sections.filter { !live.contains($0.title) }
     }
 
     var categories: [String] { aisles.map(\.title) }
 
-    /// Every product, flattened - used by search and the aisle rows.
+    /// Every product, flattened - used by search and the "popular" grid.
     var allProducts: [Product] {
         aisles.flatMap(\.products)
     }
 
-    /// Sections after applying the category selection and the search field.
+    /// Products with a real price, priced items first, capped for the home grid.
+    var popular: [Product] {
+        let priced = allProducts.filter { $0.prices.amount != nil && $0.imageURL != nil }
+        return Array((priced.isEmpty ? allProducts : priced).prefix(6))
+    }
+
+    /// Sections after applying the category chip and the search field.
     var visibleSections: [MenuSection] {
         let base = selectedCategory.map { name in
             aisles.filter { $0.title == name }
