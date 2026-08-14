@@ -75,6 +75,10 @@ struct AccountView: View {
 
     private var linksCard: some View {
         VStack(spacing: 0) {
+            Link(destination: URL(string: "https://www.instagram.com/meltingcheeseez")!) {
+                SettingsRow(icon: "camera", title: "Follow us on Instagram")
+            }
+            Divider().overlay(Brand.line)
             Link(destination: URL(string: "https://dev2.meltingcheese.food/")!) {
                 SettingsRow(icon: "globe", title: "Visit our website")
             }
