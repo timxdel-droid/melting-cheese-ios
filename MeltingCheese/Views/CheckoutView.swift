@@ -10,9 +10,18 @@ struct CheckoutView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("guestName") private var guestName = ""
+    @AppStorage("guestPhone") private var guestPhone = ""
     @State private var name = ""
+    @State private var phone = ""
     @State private var method: PaymentMethod = .applePay
     @State private var placed: OrderStore.Order?
+    @FocusState private var phoneFocused: Bool
+
+    /// A payment link can't be sent without somewhere to send it.
+    private var phoneMissing: Bool {
+        method.needsPhoneNumber &&
+        phone.trimmingCharacters(in: .whitespaces).count < 7
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -55,7 +64,10 @@ struct CheckoutView: View {
         }
         .navigationTitle("Checkout")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { if name.isEmpty { name = guestName } }
+        .onAppear {
+            if name.isEmpty { name = guestName }
+            if phone.isEmpty { phone = guestPhone }
+        }
         .sheet(item: $placed) { confirmed in
             NavigationStack {
                 CollectionView(order: confirmed)
@@ -111,6 +123,36 @@ struct CheckoutView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // The link needs a destination, so ask for it inline.
+                    if option == .paymentLink && method == .paymentLink {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Mobile number for the link")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Brand.textSecondary)
+
+                            TextField("+971 50 123 4567", text: $phone)
+                                .keyboardType(.phonePad)
+                                .textContentType(.telephoneNumber)
+                                .focused($phoneFocused)
+                                .font(.system(size: 13))
+                                .padding(11)
+                                .background(Brand.bg)
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .stroke(phoneMissing ? Brand.orange : Brand.line, lineWidth: 1)
+                                )
+
+                            Text(phoneMissing
+                                 ? "Enter the number the payment link should go to."
+                                 : "We'll text the link to this number.")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(phoneMissing ? Brand.orange : Brand.textMuted)
+                        }
+                        .padding(.bottom, 12)
+                        .transition(.opacity)
+                    }
+
                     if option != PaymentMethod.allCases.last {
                         Divider().overlay(Brand.line)
                     }
@@ -119,12 +161,15 @@ struct CheckoutView: View {
             .padding(.horizontal, 14)
             .cardStyle()
 
-            Label("Nothing is charged now — you pay at the window when you collect.",
+            Label(method == .paymentLink
+                  ? "Nothing is charged now — we send a link you can pay from before you collect."
+                  : "Nothing is charged now — you pay at the window when you collect.",
                   systemImage: "info.circle")
                 .font(.system(size: 10.5))
                 .foregroundColor(Brand.textMuted)
                 .padding(.horizontal, 2)
         }
+        .animation(.easeInOut(duration: 0.18), value: method)
     }
 
     private func block<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -167,11 +212,14 @@ struct CheckoutView: View {
 
     private var placeBar: some View {
         Button {
+            guard !phoneMissing else { phoneFocused = true; return }
             if !name.trimmingCharacters(in: .whitespaces).isEmpty { guestName = name }
-            placed = order.placeOrder(method: method)
+            if method.needsPhoneNumber { guestPhone = phone }
+            placed = order.placeOrder(method: method,
+                                      phone: method.needsPhoneNumber ? phone : nil)
         } label: {
             HStack {
-                Text("Place Order")
+                Text(method == .paymentLink ? "Place Order & Send Link" : "Place Order")
                 Spacer()
                 Text(order.format(order.total))
             }
@@ -180,6 +228,6 @@ struct CheckoutView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(.regularMaterial)
-        .disabled(order.lines.isEmpty)
+        .disabled(order.lines.isEmpty || phoneMissing)
     }
 }
