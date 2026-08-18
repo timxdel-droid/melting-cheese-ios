@@ -79,11 +79,11 @@ struct AccountView: View {
                 SettingsRow(icon: "camera", title: "Follow us on Instagram")
             }
             Divider().overlay(Brand.line)
-            Link(destination: URL(string: "https://dev2.meltingcheese.food/")!) {
+            Link(destination: URL(string: "https://meltingcheese.food/")!) {
                 SettingsRow(icon: "globe", title: "Visit our website")
             }
             Divider().overlay(Brand.line)
-            Link(destination: URL(string: "https://dev2.meltingcheese.food/")!) {
+            Link(destination: URL(string: "https://meltingcheese.food/")!) {
                 SettingsRow(icon: "calendar", title: "Where we're parked next")
             }
             Divider().overlay(Brand.line)
