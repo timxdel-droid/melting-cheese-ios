@@ -9,6 +9,13 @@ struct CollectionView: View {
 
     @EnvironmentObject private var store: OrderStore
 
+    /// The code stays hidden until staff ask for it, so it can't be shown
+    /// to the wrong person or read off a screen in a queue.
+    @State private var codeRevealed = false
+
+    /// Always read the live copy — status changes after this view is created.
+    private var current: OrderStore.Order { store.order(order.id) ?? order }
+
     var body: some View {
         ZStack {
             Brand.bg.ignoresSafeArea()
@@ -16,6 +23,7 @@ struct CollectionView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     countdownCard
+                    statusCard
                     qrCard
                     itemsCard
                     Text("Show this screen to staff at the truck.\nPayment is taken at the window.")
@@ -29,6 +37,63 @@ struct CollectionView: View {
         }
         .navigationTitle("Collection")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: Status tracker
+
+    private var statusCard: some View {
+        TimelineView(.periodic(from: .now, by: 5)) { context in
+            let order = current
+            let stage = order.status(at: context.date)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Order status")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Brand.textSecondary)
+                    .padding(.bottom, 12)
+
+                ForEach(OrderStatus.allCases) { step in
+                    let done = step.rawValue <= stage.rawValue
+                    let isCurrent = step == stage
+
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(spacing: 0) {
+                            Image(systemName: done ? step.icon : "circle")
+                                .font(.system(size: done ? 17 : 15))
+                                .foregroundColor(done ? Brand.orange : Brand.textMuted)
+                                .frame(width: 22, height: 22)
+
+                            if step != OrderStatus.allCases.last {
+                                Rectangle()
+                                    .fill(step.rawValue < stage.rawValue ? Brand.orange : Brand.line)
+                                    .frame(width: 2, height: 26)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(step.title)
+                                .font(.system(size: 13.5, weight: isCurrent ? .bold : .medium))
+                                .foregroundColor(done ? Brand.textPrimary : Brand.textMuted)
+                            Text(step.detail)
+                                .font(.system(size: 11))
+                                .foregroundColor(Brand.textMuted)
+                        }
+
+                        Spacer()
+
+                        if let at = order.timestamp(for: step, at: context.date) {
+                            Text(at, style: .time)
+                                .font(.system(size: 11))
+                                .foregroundColor(Brand.textMuted)
+                        }
+                    }
+                    .padding(.bottom, step == OrderStatus.allCases.last ? 0 : 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .cardStyle()
+        }
     }
 
     private var countdownCard: some View {
@@ -78,19 +143,70 @@ struct CollectionView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Brand.textSecondary)
 
-            if let image = Self.qrImage(from: order.reference) {
-                Image(uiImage: image)
-                    .interpolation(.none)
-                    .resizable()
-                    .frame(width: 190, height: 190)
-            }
+            if codeRevealed {
+                if let image = Self.qrImage(from: order.reference) {
+                    Image(uiImage: image)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(width: 190, height: 190)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
 
-            Text(order.reference)
-                .font(.system(size: 26, weight: .heavy, design: .monospaced))
-                .foregroundColor(Brand.textPrimary)
-                .padding(.horizontal, 22).padding(.vertical, 10)
-                .background(Brand.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                Text(order.reference)
+                    .font(.system(size: 26, weight: .heavy, design: .monospaced))
+                    .foregroundColor(Brand.textPrimary)
+                    .padding(.horizontal, 22).padding(.vertical, 10)
+                    .background(Brand.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                if current.collectedAt == nil {
+                    Button { store.markCollected(order.id) } label: {
+                        Label("Staff: mark as collected", systemImage: "checkmark.seal")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(Brand.orange)
+                    }
+                    .padding(.top, 2)
+                } else {
+                    Label("Handed over", systemImage: "checkmark.seal.fill")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundColor(Brand.green)
+                }
+
+                Button("Hide code") {
+                    withAnimation(.easeInOut(duration: 0.2)) { codeRevealed = false }
+                }
+                .font(.system(size: 11.5))
+                .foregroundColor(Brand.textMuted)
+
+            } else {
+                // Placeholder keeps the card the same height so it doesn't jump.
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Brand.bg)
+                        .frame(width: 190, height: 190)
+                    VStack(spacing: 8) {
+                        Image(systemName: "qrcode")
+                            .font(.system(size: 42))
+                            .foregroundColor(Brand.textMuted.opacity(0.5))
+                        Text("Hidden")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Brand.textMuted)
+                    }
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { codeRevealed = true }
+                } label: {
+                    Label("Reveal collection code", systemImage: "eye.fill")
+                }
+                .buttonStyle(PrimaryButtonStyle())
+
+                Text("Only reveal this at the window, so staff can match you to the right order.")
+                    .font(.system(size: 10.5))
+                    .foregroundColor(Brand.textMuted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 6)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(20)
