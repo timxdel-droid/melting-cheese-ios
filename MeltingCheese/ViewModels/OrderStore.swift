@@ -10,6 +10,7 @@ import SwiftUI
 enum PaymentMethod: String, CaseIterable, Identifiable, Hashable {
     case applePay
     case card
+    case paymentLink
     case atTruck
 
     var id: String { rawValue }
@@ -18,6 +19,7 @@ enum PaymentMethod: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .applePay: return "Apple Pay"
         case .card: return "Credit or debit card"
+        case .paymentLink: return "Payment link"
         case .atTruck: return "Cash"
         }
     }
@@ -26,6 +28,7 @@ enum PaymentMethod: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .applePay: return "Tap to pay when you collect"
         case .card: return "Card machine at the window"
+        case .paymentLink: return "We send a link to your phone"
         case .atTruck: return "Pay at the window"
         }
     }
@@ -34,6 +37,7 @@ enum PaymentMethod: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .applePay: return "apple.logo"
         case .card: return "creditcard.fill"
+        case .paymentLink: return "link"
         case .atTruck: return "banknote"
         }
     }
@@ -43,12 +47,53 @@ enum PaymentMethod: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .applePay: return "Apple Pay"
         case .card: return "Card"
+        case .paymentLink: return "Payment link"
         case .atTruck: return "Cash"
         }
     }
 
+    /// This method needs a phone number before the order can be placed.
+    var needsPhoneNumber: Bool { self == .paymentLink }
+
     /// Flips to true per-method once a real gateway charges in-app. Nothing does yet.
     var chargesInApp: Bool { false }
+}
+
+/// Where an order has got to. Stages run in this order and never go backwards.
+enum OrderStatus: Int, CaseIterable, Identifiable, Hashable {
+    case validated
+    case preparing
+    case ready
+    case collected
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .validated: return "Order validated"
+        case .preparing: return "Preparing order"
+        case .ready: return "Order ready"
+        case .collected: return "Order collected"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .validated: return "We've got your order"
+        case .preparing: return "On the griddle now"
+        case .ready: return "Come to the window"
+        case .collected: return "Enjoy — thanks for ordering"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .validated: return "checkmark.circle.fill"
+        case .preparing: return "flame.fill"
+        case .ready: return "bell.fill"
+        case .collected: return "bag.fill.badge.plus"
+        }
+    }
 }
 
 /// Cart + order history.
@@ -108,12 +153,38 @@ final class OrderStore: ObservableObject {
         let currency: String
         let paymentMethod: PaymentMethod
 
+        /// Number the payment link was requested for, when that method was chosen.
+        var contactPhone: String?
+        /// Set when staff scan the code and hand the order over.
+        var collectedAt: Date?
+
         var itemCount: Int { lines.reduce(0) { $0 + $1.quantity } }
 
         var reference: String { "MC-" + id.prefix(6).uppercased() }
 
         /// Nothing is charged in-app yet, so every order is awaiting payment.
         var isAwaitingPayment: Bool { !paymentMethod.chargesInApp }
+
+        /// The kitchen picks the order up shortly after it lands.
+        private var prepStartsAt: Date { placedAt.addingTimeInterval(60) }
+
+        /// Derived from the clock, except `.collected`, which staff confirm.
+        func status(at now: Date = Date()) -> OrderStatus {
+            if collectedAt != nil { return .collected }
+            if now >= readyAt { return .ready }
+            if now >= prepStartsAt { return .preparing }
+            return .validated
+        }
+
+        /// When each stage was or will be reached — `nil` for a stage not yet due.
+        func timestamp(for stage: OrderStatus, at now: Date = Date()) -> Date? {
+            switch stage {
+            case .validated: return placedAt
+            case .preparing: return now >= prepStartsAt ? prepStartsAt : nil
+            case .ready: return now >= readyAt ? readyAt : nil
+            case .collected: return collectedAt
+            }
+        }
     }
 
     @Published private(set) var lines: [Line] = []
@@ -177,19 +248,33 @@ final class OrderStore: ObservableObject {
     // MARK: - Placing an order
 
     @discardableResult
-    func placeOrder(method: PaymentMethod = .atTruck) -> Order? {
+    func placeOrder(method: PaymentMethod = .atTruck, phone: String? = nil) -> Order? {
         guard !lines.isEmpty else { return nil }
         let now = Date()
+        let trimmed = phone?.trimmingCharacters(in: .whitespaces)
         let order = Order(id: UUID().uuidString,
                           placedAt: now,
                           readyAt: now.addingTimeInterval(Self.prepTime),
                           lines: lines,
                           total: total,
                           currency: currencyCode,
-                          paymentMethod: method)
+                          paymentMethod: method,
+                          contactPhone: (trimmed?.isEmpty == false) ? trimmed : nil,
+                          collectedAt: nil)
         orders.insert(order, at: 0)
         lines.removeAll()
         return order
+    }
+
+    /// Staff confirm the handover after checking the collection code.
+    func markCollected(_ orderID: String) {
+        guard let idx = orders.firstIndex(where: { $0.id == orderID }),
+              orders[idx].collectedAt == nil else { return }
+        orders[idx].collectedAt = Date()
+    }
+
+    func order(_ orderID: String) -> Order? {
+        orders.first { $0.id == orderID }
     }
 
     // MARK: - Formatting
