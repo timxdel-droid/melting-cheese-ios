@@ -15,10 +15,22 @@ final class MenuViewModel: ObservableObject {
     @Published var selectedCategory: String?      // nil == "All"
     @Published var searchText: String = ""
 
+    /// We're showing saved data because the server couldn't be reached.
+    @Published private(set) var showingCached = false
+    @Published private(set) var lastUpdated: Date?
+
     private let service: MenuService
 
     init(service: MenuService = .shared) {
         self.service = service
+
+        // Paint from disk before any network call happens. A customer opening
+        // the app sees the menu immediately - with no signal, they still do.
+        if let cached = service.cachedSections(), !cached.isEmpty {
+            sections = cached
+            state = .loaded
+            lastUpdated = MenuCache.shared.savedAt
+        }
     }
 
     /// Live catalogue plus the in-app drink aisles.
@@ -82,21 +94,36 @@ final class MenuViewModel: ObservableObject {
 
     func load() async {
         if case .loading = state { return }
-        state = .loading
-        do {
-            sections = try await service.fetchSections()
-            state = .loaded
-        } catch {
-            state = .failed(error.localizedDescription)
-        }
+        // Only block the screen when there is genuinely nothing to show.
+        if sections.isEmpty { state = .loading }
+        await revalidate()
     }
 
     func refresh() async {
+        await revalidate()
+    }
+
+    /// Sends the stored ETag and acts on what comes back. A 304 is the common
+    /// case and costs a couple of hundred bytes.
+    private func revalidate() async {
         do {
-            sections = try await service.fetchSections()
+            switch try await service.refreshSections() {
+            case .fresh(let fresh):
+                sections = fresh
+                lastUpdated = Date()
+            case .unchanged:
+                lastUpdated = Date()
+            }
+            showingCached = false
             state = .loaded
         } catch {
-            if sections.isEmpty { state = .failed(error.localizedDescription) }
+            // Having a cached menu turns a hard error into a soft note.
+            if sections.isEmpty {
+                state = .failed(error.localizedDescription)
+            } else {
+                showingCached = true
+                state = .loaded
+            }
         }
     }
 }
