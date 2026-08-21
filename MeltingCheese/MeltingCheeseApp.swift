@@ -5,7 +5,21 @@ struct MeltingCheeseApp: App {
     @StateObject private var menu = MenuViewModel()
     @StateObject private var order = OrderStore()
 
-    init() { configureAppearance() }
+    init() {
+        configureURLCache()
+        configureAppearance()
+    }
+
+    /// Product photos are the heavy part - roughly 2.5 MB across the menu, and
+    /// by far the biggest thing the server sends. AsyncImage goes through
+    /// URLCache.shared, whose default disk allowance is far too small to hold
+    /// the catalogue, so we raise it. The server marks uploads immutable, so
+    /// once a photo is on the phone it is never requested again.
+    private func configureURLCache() {
+        URLCache.shared = URLCache(memoryCapacity: 32 * 1024 * 1024,
+                                   diskCapacity: 256 * 1024 * 1024,
+                                   diskPath: "melting_cheese_media")
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -64,7 +78,9 @@ struct RootView: View {
                 .tag(4)
         }
         .task {
-            if menu.sections.isEmpty { await menu.load() }
+            // Always revalidate. The cached menu is already on screen,
+            // so this is a background check, not a blocking load.
+            await menu.load()
         }
     }
 }
