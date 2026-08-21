@@ -46,6 +46,68 @@ actor MenuService {
         self.session = session
     }
 
+    /// What a refresh actually produced.
+    enum Outcome {
+        /// Server sent a new catalogue; it has already been written to disk.
+        case fresh([MenuSection])
+        /// Server confirmed nothing changed - keep showing what we have.
+        case unchanged
+    }
+
+    private var productsURL: URL? {
+        var comps = URLComponents(url: baseURL.appendingPathComponent("products"),
+                                  resolvingAgainstBaseURL: false)
+        comps?.queryItems = [URLQueryItem(name: "per_page", value: "100")]
+        return comps?.url
+    }
+
+    /// Parse whatever is already on disk. No network, works offline.
+    nonisolated func cachedSections() -> [MenuSection]? {
+        guard let data = MenuCache.shared.readBody(),
+              let products = try? JSONDecoder().decode([Product].self, from: data),
+              !products.isEmpty
+        else { return nil }
+        return group(products)
+    }
+
+    /// Ask the server whether the menu changed, sending the ETag we hold.
+    /// A 304 costs a couple of hundred bytes; a 200 rewrites the cache.
+    func refreshSections() async throws -> Outcome {
+        guard let url = productsURL else { throw MenuServiceError.badURL }
+
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // We do our own revalidation, so don't let URLCache answer for us.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 20
+        if let etag = MenuCache.shared.readETag() {
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw MenuServiceError.badResponse(0)
+        }
+
+        if http.statusCode == 304 {
+            MenuCache.shared.touch()
+            return .unchanged
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw MenuServiceError.badResponse(http.statusCode)
+        }
+
+        let products: [Product]
+        do {
+            products = try JSONDecoder().decode([Product].self, from: data)
+        } catch {
+            throw MenuServiceError.decoding(error.localizedDescription)
+        }
+
+        MenuCache.shared.write(data, etag: http.value(forHTTPHeaderField: "ETag"))
+        return .fresh(group(products))
+    }
+
     func fetchProducts() async throws -> [Product] {
         var comps = URLComponents(url: baseURL.appendingPathComponent("products"),
                                   resolvingAgainstBaseURL: false)
