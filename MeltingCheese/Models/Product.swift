@@ -10,6 +10,11 @@ struct Product: Identifiable, Decodable, Hashable {
     let description: String
     let prices: Prices
     let images: [ProductImage]
+
+    /// Published from the ROS Product Editor. Arrives on the public Store
+    /// API under extensions.melting_cheese.ingredients, so no credentials and
+    /// no second request are needed.
+    var ingredients: [Ingredient] = []
     let categories: [ProductCategory]
     let isInStock: Bool
 
@@ -51,8 +56,20 @@ struct Product: Identifiable, Decodable, Hashable {
         description = ((try? c.decode(String.self, forKey: .description)) ?? "").strippingHTML
         prices = try c.decode(Prices.self, forKey: .prices)
         images = (try? c.decode([ProductImage].self, forKey: .images)) ?? []
+
+        // Store API extensions sit alongside the product fields rather than
+        // inside them, so they need their own keyed container.
+        if let outer = try? decoder.container(keyedBy: StoreExtensionKeys.self),
+           let payload = try? outer.decode(StoreExtensions.self, forKey: .extensions) {
+            ingredients = payload.meltingCheese?.ingredients ?? []
+        }
         categories = (try? c.decode([ProductCategory].self, forKey: .categories)) ?? []
         isInStock = (try? c.decode(Bool.self, forKey: .isInStock)) ?? true
+    }
+
+    /// Every photo, in the order set in the ROS Product Editor.
+    var gallery: [URL] {
+        images.compactMap { $0.src.flatMap { URL(string: $0) } }
     }
 
     var imageURL: URL? {
@@ -178,4 +195,43 @@ extension String {
         for (k, v) in entities { s = s.replacingOccurrences(of: k, with: v) }
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
+
+/// One line of the ingredient list an operator arranged in ROS.
+struct Ingredient: Codable, Hashable, Identifiable {
+    let name: String
+    let quantity: String
+    let unit: String
+
+    var id: String { "\(name)|\(quantity)|\(unit)" }
+
+    /// "120 g", "2 pcs", or empty when no amount was entered.
+    var amountText: String {
+        [quantity, unit].filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    enum CodingKeys: String, CodingKey { case name, quantity, unit }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        quantity = (try? c.decode(String.self, forKey: .quantity)) ?? ""
+        unit = (try? c.decode(String.self, forKey: .unit)) ?? ""
+    }
+}
+
+private enum StoreExtensionKeys: String, CodingKey {
+    case extensions
+}
+
+private struct StoreExtensions: Decodable {
+    let meltingCheese: MeltingCheeseExtension?
+
+    enum CodingKeys: String, CodingKey {
+        case meltingCheese = "melting_cheese"
+    }
+}
+
+private struct MeltingCheeseExtension: Decodable {
+    let ingredients: [Ingredient]?
 }
