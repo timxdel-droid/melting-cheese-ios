@@ -26,6 +26,8 @@ final class MenuViewModel: ObservableObject {
 
         // Paint from disk before any network call happens. A customer opening
         // the app sees the menu immediately - with no signal, they still do.
+        appConfig = AppConfigService.shared.cached()
+
         if let cached = service.cachedSections(), !cached.isEmpty {
             sections = cached
             state = .loaded
@@ -41,9 +43,50 @@ final class MenuViewModel: ObservableObject {
     /// next app release happen in.
     var aisles: [MenuSection] {
         let live = Set(sections.map(\.title))
-        return sections + DrinksCatalogue.sections.filter { !live.contains($0.title) }
+        let all = sections + DrinksCatalogue.sections.filter { !live.contains($0.title) }
+        return arrange(all, using: appConfig?.activeEvent)
     }
 
+    /// Layout and banners last published from ROS, if any.
+    @Published private(set) var appConfig: AppConfig?
+
+    /// Banner for the pinned header slot, or nil when nothing is published.
+    var headerBanner: AppConfigBanner? {
+        appConfig?.banner(id: appConfig?.activeEvent?.layout?.headerPack)
+    }
+
+    /// Banner shown between aisles, with the index of the aisle it follows.
+    var midBanner: (banner: AppConfigBanner, after: Int)? {
+        guard let slot = appConfig?.activeEvent?.layout?.mid,
+              let banner = appConfig?.banner(id: slot.packID) else { return nil }
+        return (banner, slot.after ?? 0)
+    }
+
+    var eventName: String? {
+        guard let name = appConfig?.activeEvent?.name, !name.isEmpty else { return nil }
+        return name
+    }
+
+    /// Applies the published order and visibility.
+    ///
+    /// Any category the operator has not arranged yet stays visible and is
+    /// appended, so a new WooCommerce category can never silently vanish.
+    /// Swift sorting is not stable, so the original index breaks ties.
+    private func arrange(_ list: [MenuSection], using event: AppConfigEvent?) -> [MenuSection] {
+        guard let categories = event?.layout?.categories, !categories.isEmpty else { return list }
+        let hidden = Set(categories.filter { $0.visible == false }.map(\.name))
+        var rank: [String: Int] = [:]
+        for (i, c) in categories.enumerated() where rank[c.name] == nil { rank[c.name] = i }
+
+        return list.enumerated()
+            .filter { !hidden.contains($0.element.title) }
+            .sorted { lhs, rhs in
+                let a = rank[lhs.element.title] ?? Int.max
+                let b = rank[rhs.element.title] ?? Int.max
+                return a == b ? lhs.offset < rhs.offset : a < b
+            }
+            .map(\.element)
+    }
     var categories: [String] { aisles.map(\.title) }
 
     /// Every product, flattened - used by search and the "popular" grid.
@@ -93,6 +136,10 @@ final class MenuViewModel: ObservableObject {
     }
 
     func load() async {
+        // A failed config fetch is silent on purpose: the menu matters
+        // more than the arrangement, and the last publish still applies.
+        if let fresh = try? await AppConfigService.shared.refresh() { appConfig = fresh }
+
         if case .loading = state { return }
         // Only block the screen when there is genuinely nothing to show.
         if sections.isEmpty { state = .loading }
@@ -100,6 +147,10 @@ final class MenuViewModel: ObservableObject {
     }
 
     func refresh() async {
+        // A failed config fetch is silent on purpose: the menu matters
+        // more than the arrangement, and the last publish still applies.
+        if let fresh = try? await AppConfigService.shared.refresh() { appConfig = fresh }
+
         await revalidate()
     }
 
