@@ -19,6 +19,9 @@ struct HomeView: View {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         accountBar
                         searchBar
+                        eventContextRow
+                        headerBannerCard
+                        foodHallCategories
                         activeOrderBanner
                         aisles
                         SocialFollowBar().padding(.horizontal, 16)
@@ -144,6 +147,104 @@ struct HomeView: View {
     }
 
     @ViewBuilder
+    /// Which collection point the menu belongs to. Fixed part of the frame
+    /// in ROS: it sets the context for everything below it.
+    private var eventContextRow: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(vm.eventName ?? "All locations")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Brand.orangeDeep)
+                Text("Select the Melting Cheese collection point")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Brand.textSecondary)
+            }
+            Spacer()
+            Text("Change")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Brand.orangeDeep)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Brand.amberSoft)
+        .cardStyle(radius: 10)
+        .padding(.horizontal, 16)
+    }
+
+    /// Header banner — the first editable slot in ROS. Falls back to the
+    /// built-in brand copy whenever nothing has been published.
+    private var headerBannerCard: some View {
+        let banner = vm.headerBanner
+        let parts = banner?.headlineParts ?? ("BOLD FLAVOR.", "BIG ENERGY.")
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("MELTING CHEESE")
+                .font(.system(size: 9, weight: .heavy))
+                .kerning(1)
+                .foregroundStyle(Brand.textPrimary.opacity(0.55))
+            Text(parts.0)
+                .font(.system(size: 24, weight: .heavy))
+                .foregroundStyle(Brand.textPrimary)
+                .padding(.top, 4)
+            if !parts.1.isEmpty {
+                Text(parts.1)
+                    .font(.system(size: 24, weight: .heavy))
+                    .foregroundStyle(Brand.orangeDeep)
+            }
+            Text(banner?.cta ?? "View the menu")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Brand.orangeDeep)
+                .clipShape(Capsule())
+                .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color(red: 1.0, green: 0.788, blue: 0.235))
+        .cardStyle()
+        .padding(.horizontal, 16)
+    }
+
+    /// Pinned second, straight after the banner. Order and visibility come
+    /// from whatever was published in ROS.
+    @ViewBuilder
+    private var foodHallCategories: some View {
+        if !vm.aisles.isEmpty {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    Text("Food Hall Categories")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Brand.textPrimary)
+                    Spacer()
+                    Button("All menu") { switchTab(1) }
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Brand.orangeDeep)
+                }
+                .padding(.horizontal, 16)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(vm.aisles.enumerated()), id: \.element.id) { index, section in
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(section.title)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(index == 0 ? .white : Brand.textPrimary)
+                                Text("\(section.products.count) items")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(index == 0 ? .white.opacity(0.7) : Brand.textSecondary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(index == 0 ? Brand.textPrimary : Brand.surface)
+                            .cardStyle(radius: 10)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
+        }
+    }
     private var aisles: some View {
         switch vm.state {
         case .idle, .loading:
@@ -174,7 +275,12 @@ struct HomeView: View {
             ForEach(Array(vm.aisles.enumerated()), id: \.element.id) { index, section in
                 AisleRow(section: section)
 
-                if (index + 1) % 2 == 0, !PromoUnit.slots.isEmpty {
+                if let mid = vm.midBanner, mid.after == index {
+                    MidPageBanner(banner: mid.banner)
+                        .padding(.horizontal, 16)
+                } else if vm.midBanner == nil,
+                          (index + 1) % 2 == 0,
+                          !PromoUnit.slots.isEmpty {
                     PromoUnit(slot: PromoUnit.slots[(index / 2) % PromoUnit.slots.count])
                         .padding(.horizontal, 16)
                 }
@@ -375,5 +481,32 @@ struct SignInSheet: View {
             }
         }
         .onAppear { name = guestName }
+    }
+}
+
+/// Support banner placed between aisles from the ROS Home Builder.
+struct MidPageBanner: View {
+    let banner: AppConfigBanner
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("MID-PAGE")
+                .font(.system(size: 9, weight: .heavy))
+                .kerning(1)
+                .foregroundStyle(Brand.orange)
+            Text(banner.headline ?? "")
+                .font(.system(size: 15, weight: .heavy))
+                .foregroundStyle(.white)
+            if let cta = banner.cta, !cta.isEmpty {
+                Text(cta)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Brand.orange)
+                    .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Brand.textPrimary)
+        .cardStyle()
     }
 }
