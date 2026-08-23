@@ -146,7 +146,6 @@ struct HomeView: View {
         name.replacingOccurrences(of: "Signature Food ", with: "")
     }
 
-    @ViewBuilder
     /// Which collection point the menu belongs to. Fixed part of the frame
     /// in ROS: it sets the context for everything below it.
     private var eventContextRow: some View {
@@ -245,6 +244,8 @@ struct HomeView: View {
             }
         }
     }
+
+    @ViewBuilder
     private var aisles: some View {
         switch vm.state {
         case .idle, .loading:
