@@ -7,6 +7,7 @@ struct ProductDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var quantity = 1
+    @State private var photoIndex = 0
     @State private var selectedAddOns: Set<String> = []
     @State private var note = ""
     @State private var added = false
@@ -29,7 +30,7 @@ struct ProductDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    RemoteImage(url: product.imageURL)
+                    gallery
                         .frame(height: 240)
                         .frame(maxWidth: .infinity)
                         .clipped()
@@ -47,6 +48,8 @@ struct ProductDetailView: View {
                         addOnSection
                         instructionsSection
 
+                        ingredientsCard
+
                         Color.clear.frame(height: 90)
                     }
                     .padding(18)
@@ -59,6 +62,64 @@ struct ProductDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    /// Photo gallery, in the order set in the ROS Product Editor. A single
+    /// photo renders exactly as before, so nothing regresses for products
+    /// that have not been given a gallery yet.
+    @ViewBuilder
+    private var gallery: some View {
+        let photos = product.gallery
+        if photos.count > 1 {
+            VStack(spacing: 8) {
+                TabView(selection: $photoIndex) {
+                    ForEach(Array(photos.enumerated()), id: \.offset) { index, url in
+                        RemoteImage(url: url).tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                .frame(height: 240)
+
+                Text("\(photoIndex + 1) of \(photos.count)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Brand.textMuted)
+            }
+        } else {
+            RemoteImage(url: product.imageURL)
+        }
+    }
+
+    /// Ingredients, exactly as ordered in ROS. Guests with allergies read
+    /// this, so it is shown in full rather than hidden behind a disclosure.
+    @ViewBuilder
+    private var ingredientsCard: some View {
+        if !product.ingredients.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("INGREDIENTS")
+                    .font(.system(size: 10, weight: .heavy))
+                    .kerning(1)
+                    .foregroundStyle(Brand.textMuted)
+                    .padding(.bottom, 10)
+
+                ForEach(Array(product.ingredients.enumerated()), id: \.offset) { index, item in
+                    if index > 0 {
+                        Divider().background(Brand.line).padding(.vertical, 7)
+                    }
+                    HStack {
+                        Text(item.name)
+                            .font(.system(size: 13))
+                        Spacer()
+                        if !item.amountText.isEmpty {
+                            Text(item.amountText)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Brand.textSecondary)
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+        }
+    }
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
