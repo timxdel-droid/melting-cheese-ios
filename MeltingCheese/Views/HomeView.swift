@@ -9,6 +9,7 @@ struct HomeView: View {
 
     @AppStorage("guestName") private var guestName = ""
     @State private var showSignIn = false
+    @State private var showLocations = false
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,7 @@ struct HomeView: View {
             .navigationBarHidden(true)
             .navigationDestination(for: Product.self) { ProductDetailView(product: $0) }
             .sheet(isPresented: $showSignIn) { SignInSheet() }
+            .sheet(isPresented: $showLocations) { LocationPicker() }
         }
     }
 
@@ -149,6 +151,7 @@ struct HomeView: View {
     /// Which collection point the menu belongs to. Fixed part of the frame
     /// in ROS: it sets the context for everything below it.
     private var eventContextRow: some View {
+        Button { showLocations = true } label: {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(vm.eventName ?? "All locations")
@@ -167,6 +170,8 @@ struct HomeView: View {
         .padding(.vertical, 9)
         .background(Brand.amberSoft)
         .cardStyle(radius: 10)
+        }
+        .buttonStyle(.plain)
         .padding(.horizontal, 16)
     }
 
@@ -189,14 +194,17 @@ struct HomeView: View {
                     .font(.system(size: 24, weight: .heavy))
                     .foregroundStyle(Brand.orangeDeep)
             }
-            Text(banner?.cta ?? "Start an order")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Brand.orangeDeep)
-                .clipShape(Capsule())
-                .padding(.top, 12)
+            Button { switchTab(1) } label: {
+                Text(banner?.cta ?? "Start an order")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Brand.orangeDeep)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
@@ -485,6 +493,75 @@ struct SignInSheet: View {
     }
 }
 
+/// Lets the customer choose which collection point they are ordering from.
+/// The list is whatever the operator published in ROS — no hardcoded venues.
+struct LocationPicker: View {
+    @EnvironmentObject private var vm: MenuViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Brand.bg.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 10) {
+                        row(id: nil, name: "All locations",
+                            detail: "Show the full menu wherever we are parked")
+
+                        ForEach(vm.availableEvents, id: \.id) { event in
+                            row(id: event.id,
+                                name: event.name ?? event.id,
+                                detail: "\(event.layout?.categories?.count ?? 0) categories on the menu")
+                        }
+
+                        if vm.availableEvents.isEmpty {
+                            Text("No collection points published yet.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Brand.textMuted)
+                                .padding(.top, 20)
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+            .navigationTitle("Collection point")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }.foregroundColor(Brand.orange)
+                }
+            }
+        }
+    }
+
+    private func row(id: String?, name: String, detail: String) -> some View {
+        let selected = vm.selectedEventID == id
+        return Button {
+            vm.selectedEventID = id
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Brand.textPrimary)
+                    Text(detail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Brand.textMuted)
+                }
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Brand.orange)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+    }
+}
 /// Support banner placed between aisles from the ROS Home Builder.
 struct MidPageBanner: View {
     let banner: AppConfigBanner
