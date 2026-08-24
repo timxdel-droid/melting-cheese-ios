@@ -174,7 +174,7 @@ struct HomeView: View {
     /// built-in brand copy whenever nothing has been published.
     private var headerBannerCard: some View {
         let banner = vm.headerBanner
-        let parts = banner?.headlineParts ?? ("BOLD FLAVOR.", "BIG ENERGY.")
+        let parts = banner?.headlineParts ?? ("ORDER AHEAD.", "SKIP THE QUEUE.")
         return VStack(alignment: .leading, spacing: 0) {
             Text("MELTING CHEESE")
                 .font(.system(size: 9, weight: .heavy))
@@ -189,7 +189,7 @@ struct HomeView: View {
                     .font(.system(size: 24, weight: .heavy))
                     .foregroundStyle(Brand.orangeDeep)
             }
-            Text(banner?.cta ?? "View the menu")
+            Text(banner?.cta ?? "Start an order")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16)
