@@ -38,6 +38,8 @@ struct AppConfig: Codable, Equatable {
 struct AppConfigEvent: Codable, Equatable {
     var id: String
     var name: String?
+    /// Where the event physically is, shown under the name in the picker.
+    var venue: String?
     var layout: AppConfigLayout?
 }
 
