@@ -44,7 +44,25 @@ final class MenuViewModel: ObservableObject {
     var aisles: [MenuSection] {
         let live = Set(sections.map(\.title))
         let all = sections + DrinksCatalogue.sections.filter { !live.contains($0.title) }
-        return arrange(all, using: appConfig?.activeEvent)
+        return arrange(all, using: currentEvent)
+    }
+
+    /// The collection point the customer picked, if they picked one.
+    /// Persisted so the choice survives a relaunch.
+    @Published var selectedEventID: String? = UserDefaults.standard.string(forKey: "mc_selected_event") {
+        didSet { UserDefaults.standard.set(selectedEventID, forKey: "mc_selected_event") }
+    }
+
+    /// Every collection point the operator published.
+    var availableEvents: [AppConfigEvent] { appConfig?.events ?? [] }
+
+    /// What the screen renders: the customer choice if valid, else the
+    /// published default.
+    var currentEvent: AppConfigEvent? {
+        if let id = selectedEventID, let match = availableEvents.first(where: { $0.id == id }) {
+            return match
+        }
+        return appConfig?.activeEvent
     }
 
     /// Layout and banners last published from ROS, if any.
@@ -52,18 +70,18 @@ final class MenuViewModel: ObservableObject {
 
     /// Banner for the pinned header slot, or nil when nothing is published.
     var headerBanner: AppConfigBanner? {
-        appConfig?.banner(id: appConfig?.activeEvent?.layout?.headerPack)
+        appConfig?.banner(id: currentEvent?.layout?.headerPack)
     }
 
     /// Banner shown between aisles, with the index of the aisle it follows.
     var midBanner: (banner: AppConfigBanner, after: Int)? {
-        guard let slot = appConfig?.activeEvent?.layout?.mid,
+        guard let slot = currentEvent?.layout?.mid,
               let banner = appConfig?.banner(id: slot.packID) else { return nil }
         return (banner, slot.after ?? 0)
     }
 
     var eventName: String? {
-        guard let name = appConfig?.activeEvent?.name, !name.isEmpty else { return nil }
+        guard let name = currentEvent?.name, !name.isEmpty else { return nil }
         return name
     }
 
