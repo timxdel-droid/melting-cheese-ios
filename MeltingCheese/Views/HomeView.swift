@@ -157,7 +157,7 @@ struct HomeView: View {
                 Text(vm.eventName ?? "All locations")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Brand.orangeDeep)
-                Text("Select the Melting Cheese collection point")
+                Text(vm.currentEvent?.venue?.isEmpty == false ? vm.currentEvent!.venue! : "Select the Melting Cheese collection point")
                     .font(.system(size: 10))
                     .foregroundStyle(Brand.textSecondary)
             }
@@ -511,7 +511,7 @@ struct LocationPicker: View {
                         ForEach(vm.availableEvents, id: \.id) { event in
                             row(id: event.id,
                                 name: event.name ?? event.id,
-                                detail: "\(event.layout?.categories?.count ?? 0) categories on the menu")
+                                detail: event.venue?.isEmpty == false ? event.venue! : "Venue to be confirmed")
                         }
 
                         if vm.availableEvents.isEmpty {
