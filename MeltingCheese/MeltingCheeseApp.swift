@@ -55,6 +55,13 @@ struct RootView: View {
     @State private var tab = 0
 
     var body: some View {
+        // Wraps every tab. Gating inside a tab would leave four ways round it.
+        UpdateGate(release: menu.appConfig?.releases?.ios) {
+            gatedBody
+        }
+    }
+
+    private var gatedBody: some View {
         TabView(selection: $tab) {
             HomeView(switchTab: { tab = $0 })
                 .tabItem { Label("Home", systemImage: "house.fill") }
