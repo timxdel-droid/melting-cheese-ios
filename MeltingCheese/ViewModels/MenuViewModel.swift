@@ -35,15 +35,14 @@ final class MenuViewModel: ObservableObject {
         }
     }
 
-    /// Live catalogue plus the in-app drink aisles.
+    /// The live catalogue, arranged by the layout published from ROS.
     ///
-    /// A hardcoded drink aisle stands down as soon as a category of the same
-    /// name arrives from WooCommerce, so importing the drinks to the website
-    /// cannot produce duplicate aisles - whatever order the import and the
-    /// next app release happen in.
+    /// Drinks used to be defined in the app because the website carried only
+    /// two of them. All five aisles now arrive from WooCommerce with real
+    /// prices, so the in-app copy has been removed rather than left to drift
+    /// out of date against the real menu.
     var aisles: [MenuSection] {
-        let live = Set(sections.map(\.title))
-        let all = sections + DrinksCatalogue.sections.filter { !live.contains($0.title) }
+        let all = sections
         return arrange(all, using: currentEvent)
     }
 
