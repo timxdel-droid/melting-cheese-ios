@@ -158,9 +158,19 @@ final class OrderStore: ObservableObject {
         /// Set when staff scan the code and hand the order over.
         var collectedAt: Date?
 
+        /// The WooCommerce order id, once the store has issued one. Nil only
+        /// for orders placed before the app could submit them.
+        var serverOrderID: Int?
+        /// The collection code the store issued. Staff read this at the
+        /// window, so it has to be the server's and never a local guess.
+        var serverCode: String?
+
         var itemCount: Int { lines.reduce(0) { $0 + $1.quantity } }
 
-        var reference: String { "MC-" + id.prefix(6).uppercased() }
+        /// What staff check at the window. Prefers the code the store issued,
+        /// falling back to a local one only so orders saved by an older build
+        /// still render instead of showing nothing at all.
+        var reference: String { serverCode ?? "MC-" + id.prefix(6).uppercased() }
 
         /// Nothing is charged in-app yet, so every order is awaiting payment.
         var isAwaitingPayment: Bool { !paymentMethod.chargesInApp }
@@ -247,8 +257,16 @@ final class OrderStore: ObservableObject {
 
     // MARK: - Placing an order
 
+    /// Records an order the store has already accepted.
+    ///
+    /// Call this only once `OrderService` has returned successfully. The
+    /// basket is emptied here, so calling it after a failed submission would
+    /// throw the order away and leave the customer nothing to collect.
     @discardableResult
-    func placeOrder(method: PaymentMethod = .atTruck, phone: String? = nil) -> Order? {
+    func placeOrder(method: PaymentMethod = .atTruck,
+                    phone: String? = nil,
+                    serverOrderID: Int? = nil,
+                    serverCode: String? = nil) -> Order? {
         guard !lines.isEmpty else { return nil }
         let now = Date()
         let trimmed = phone?.trimmingCharacters(in: .whitespaces)
@@ -260,7 +278,9 @@ final class OrderStore: ObservableObject {
                           currency: currencyCode,
                           paymentMethod: method,
                           contactPhone: (trimmed?.isEmpty == false) ? trimmed : nil,
-                          collectedAt: nil)
+                          collectedAt: nil,
+                          serverOrderID: serverOrderID,
+                          serverCode: serverCode)
         orders.insert(order, at: 0)
         lines.removeAll()
         return order
