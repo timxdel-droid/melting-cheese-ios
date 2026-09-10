@@ -7,6 +7,7 @@ import SwiftUI
 /// method currently settles at the window.
 struct CheckoutView: View {
     @EnvironmentObject private var order: OrderStore
+    @EnvironmentObject private var menu: MenuViewModel
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("guestName") private var guestName = ""
@@ -15,6 +16,12 @@ struct CheckoutView: View {
     @State private var phone = ""
     @State private var method: PaymentMethod = .applePay
     @State private var placed: OrderStore.Order?
+    /// True only while the order is in flight, so the button cannot be
+    /// pressed twice and create two orders for one customer.
+    @State private var submitting = false
+    /// Set when the store refused or could not be reached. The basket is
+    /// deliberately left untouched whenever this is non-nil.
+    @State private var failure: String?
     @FocusState private var phoneFocused: Bool
 
     /// A payment link can't be sent without somewhere to send it.
@@ -31,9 +38,11 @@ struct CheckoutView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     block(title: "Collection") {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Melting Cheese Street Lab")
+                            // The event the customer chose, not a hardcoded
+                            // one - this is the event the order is filed under.
+                            Text(menu.currentEvent?.name ?? "Melting Cheese Street Lab")
                                 .font(.system(size: 14, weight: .semibold))
-                            Text("Collect from the truck at the event")
+                            Text(menu.currentEvent?.venue ?? "Collect from the truck at the event")
                                 .font(.system(size: 12))
                                 .foregroundColor(Brand.textSecondary)
                         }
@@ -62,6 +71,13 @@ struct CheckoutView: View {
 
             placeBar
         }
+        .alert("Order not placed",
+               isPresented: Binding(get: { failure != nil },
+                                    set: { if !$0 { failure = nil } })) {
+            Button("OK", role: .cancel) { failure = nil }
+        } message: {
+            Text(failure ?? "")
+        }
         .navigationTitle("Checkout")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -81,6 +97,39 @@ struct CheckoutView: View {
                         }
                     }
             }
+        }
+    }
+
+    // MARK: Placing the order
+
+    /// Sends the basket, and only records the order once the store has
+    /// accepted it.
+    ///
+    /// The ordering here is the whole point: `order.placeOrder` empties the
+    /// basket, so it must not run until the server has confirmed. If the
+    /// submission fails the customer keeps their basket and can simply press
+    /// the button again.
+    private func submit() async {
+        submitting = true
+        defer { submitting = false }
+
+        if !name.trimmingCharacters(in: .whitespaces).isEmpty { guestName = name }
+        if method.needsPhoneNumber { guestPhone = phone }
+
+        do {
+            let confirmed = try await OrderService.shared.submit(
+                lines: order.lines,
+                event: menu.currentEvent?.id,
+                name: name,
+                phone: method.needsPhoneNumber ? phone : nil,
+                paymentMethod: method)
+
+            placed = order.placeOrder(method: method,
+                                      phone: method.needsPhoneNumber ? phone : nil,
+                                      serverOrderID: confirmed.orderID,
+                                      serverCode: confirmed.collectionCode)
+        } catch {
+            failure = error.localizedDescription
         }
     }
 
@@ -213,13 +262,15 @@ struct CheckoutView: View {
     private var placeBar: some View {
         Button {
             guard !phoneMissing else { phoneFocused = true; return }
-            if !name.trimmingCharacters(in: .whitespaces).isEmpty { guestName = name }
-            if method.needsPhoneNumber { guestPhone = phone }
-            placed = order.placeOrder(method: method,
-                                      phone: method.needsPhoneNumber ? phone : nil)
+            Task { await submit() }
         } label: {
             HStack {
-                Text(method == .paymentLink ? "Place Order & Send Link" : "Place Order")
+                if submitting {
+                    ProgressView().tint(.white)
+                    Text("Sending…")
+                } else {
+                    Text(method == .paymentLink ? "Place Order & Send Link" : "Place Order")
+                }
                 Spacer()
                 Text(order.format(order.total))
             }
@@ -228,6 +279,6 @@ struct CheckoutView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(.regularMaterial)
-        .disabled(order.lines.isEmpty || phoneMissing)
+        .disabled(order.lines.isEmpty || phoneMissing || submitting)
     }
 }
