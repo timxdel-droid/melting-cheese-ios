@@ -336,7 +336,7 @@ struct AisleCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottomTrailing) {
-                RemoteImage(url: product.imageURL)
+                RemoteImage(url: product.thumbnailURL(coveringWidth: 142))
                     .frame(width: 142, height: 100)
                     .clipped()
 

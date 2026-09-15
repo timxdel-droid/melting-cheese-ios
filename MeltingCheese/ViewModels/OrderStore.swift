@@ -226,7 +226,9 @@ final class OrderStore: ObservableObject {
                 Line(id: key,
                      productID: product.id,
                      name: product.name,
-                     imageURL: product.imageURL,
+                     // The cart draws this at 58 points and nowhere larger,
+                     // so store a sized URL rather than the original.
+                     imageURL: product.thumbnailURL(coveringWidth: 58),
                      unitPrice: product.prices.amount,
                      currency: product.prices.currencyCode,
                      quantity: quantity,

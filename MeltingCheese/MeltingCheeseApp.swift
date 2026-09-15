@@ -10,11 +10,16 @@ struct MeltingCheeseApp: App {
         configureAppearance()
     }
 
-    /// Product photos are the heavy part - roughly 2.5 MB across the menu, and
-    /// by far the biggest thing the server sends. AsyncImage goes through
-    /// URLCache.shared, whose default disk allowance is far too small to hold
-    /// the catalogue, so we raise it. The server marks uploads immutable, so
-    /// once a photo is on the phone it is never requested again.
+    /// Product photos are by far the biggest thing the server sends. At full
+    /// resolution the catalogue is about 13 MB - individual originals run
+    /// 1.7-2.4 MB - which is why the list and grid screens now request a
+    /// published size that matches what they draw (see ProductImage.url).
+    /// The detail screen still uses the original.
+    ///
+    /// AsyncImage goes through URLCache.shared, whose default disk allowance
+    /// is far too small to hold the catalogue, so we raise it. The server
+    /// marks uploads immutable, so once a photo is on the phone it is never
+    /// requested again.
     private func configureURLCache() {
         URLCache.shared = URLCache(memoryCapacity: 32 * 1024 * 1024,
                                    diskCapacity: 256 * 1024 * 1024,
