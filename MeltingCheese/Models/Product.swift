@@ -72,9 +72,19 @@ struct Product: Identifiable, Decodable, Hashable {
         images.compactMap { $0.src.flatMap { URL(string: $0) } }
     }
 
+    /// Full resolution. Use this only where the photo is the subject, such as
+    /// the product detail hero — never for a row or a grid cell.
     var imageURL: URL? {
         guard let src = images.first?.src else { return nil }
         return URL(string: src)
+    }
+
+    /// Sized for a list row or grid cell, given the width it will be drawn at.
+    ///
+    /// Falls back to the full image when WordPress has published nothing
+    /// smaller, so a product always renders even if its sizes are missing.
+    func thumbnailURL(coveringWidth width: Int) -> URL? {
+        images.first?.url(coveringWidth: width) ?? imageURL
     }
 
     /// Human-readable price, e.g. "35.00 AED". Returns nil when the price
@@ -154,7 +164,57 @@ struct ProductImage: Decodable, Hashable {
     let id: Int?
     let src: String?
     let thumbnail: String?
+    /// WordPress publishes several widths per upload and lists them here,
+    /// e.g. "…-300x300.jpg 300w, …-768x768.jpg 768w".
+    let srcset: String?
     let alt: String?
+
+    /// The smallest published size that still covers `width` points.
+    ///
+    /// `src` is always the full-resolution original — on this catalogue that
+    /// is 1.7–2.4 MB per photo, roughly 13 MB across the menu. Drawing one of
+    /// those into a 60-point row costs both the download and a full-size
+    /// decode, which is what makes the first run feel slow. The list screens
+    /// ask for a size that actually fits instead.
+    ///
+    /// Scale defaults to 3 so a 3x phone is never sent a blurry image; a 2x
+    /// phone fetches slightly more than it needs, which is still an order of
+    /// magnitude less than the original.
+    func url(coveringWidth width: Int, scale: Int = 3) -> URL? {
+        let target = width * scale
+        let candidates = Self.parseSrcset(srcset)
+
+        if let best = candidates
+            .filter({ $0.width >= target })
+            .min(by: { $0.width < $1.width }) {
+            return URL(string: best.url)
+        }
+
+        // Nothing published is large enough, so prefer the biggest that is,
+        // then the thumbnail, then the original.
+        if let largest = candidates.max(by: { $0.width < $1.width }) {
+            return URL(string: largest.url)
+        }
+        if let thumbnail, let url = URL(string: thumbnail) {
+            return url
+        }
+        return src.flatMap { URL(string: $0) }
+    }
+
+    /// Entries are "url widthw", comma separated. Anything that does not
+    /// parse is skipped rather than guessed at.
+    private static func parseSrcset(_ srcset: String?) -> [(url: String, width: Int)] {
+        guard let srcset, !srcset.isEmpty else { return [] }
+        return srcset.split(separator: ",").compactMap { entry in
+            let parts = entry.trimmingCharacters(in: .whitespaces)
+                .split(separator: " ", omittingEmptySubsequences: true)
+            guard parts.count == 2,
+                  parts[1].hasSuffix("w"),
+                  let width = Int(parts[1].dropLast()),
+                  width > 0 else { return nil }
+            return (String(parts[0]), width)
+        }
+    }
 }
 
 struct ProductCategory: Decodable, Hashable {
