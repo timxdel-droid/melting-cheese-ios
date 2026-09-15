@@ -121,7 +121,7 @@ struct MenuRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RemoteImage(url: product.imageURL)
+            RemoteImage(url: product.thumbnailURL(coveringWidth: 60))
                 .frame(width: 60, height: 60)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
