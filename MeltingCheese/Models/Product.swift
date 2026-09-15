@@ -187,13 +187,13 @@ struct ProductImage: Decodable, Hashable {
         if let best = candidates
             .filter({ $0.width >= target })
             .min(by: { $0.width < $1.width }) {
-            return URL(string: best.url)
+            return best.url
         }
 
         // Nothing published is large enough, so prefer the biggest that is,
         // then the thumbnail, then the original.
         if let largest = candidates.max(by: { $0.width < $1.width }) {
-            return URL(string: largest.url)
+            return largest.url
         }
         if let thumbnail, let url = URL(string: thumbnail) {
             return url
@@ -201,9 +201,15 @@ struct ProductImage: Decodable, Hashable {
         return src.flatMap { URL(string: $0) }
     }
 
-    /// Entries are "url widthw", comma separated. Anything that does not
-    /// parse is skipped rather than guessed at.
-    private static func parseSrcset(_ srcset: String?) -> [(url: String, width: Int)] {
+    /// Entries are "url widthw", comma separated.
+    ///
+    /// An entry is kept only when BOTH halves are usable: a width that
+    /// parses and a URL Foundation accepts. Validating the URL here rather
+    /// than at the point of return matters — otherwise the widest match
+    /// could be one that fails to convert, and returning nil from that
+    /// branch would skip every remaining size and both fallbacks, quietly
+    /// sending the caller back to the full-resolution original.
+    private static func parseSrcset(_ srcset: String?) -> [(url: URL, width: Int)] {
         guard let srcset, !srcset.isEmpty else { return [] }
         return srcset.split(separator: ",").compactMap { entry in
             let parts = entry.trimmingCharacters(in: .whitespaces)
@@ -211,8 +217,9 @@ struct ProductImage: Decodable, Hashable {
             guard parts.count == 2,
                   parts[1].hasSuffix("w"),
                   let width = Int(parts[1].dropLast()),
-                  width > 0 else { return nil }
-            return (String(parts[0]), width)
+                  width > 0,
+                  let url = URL(string: String(parts[0])) else { return nil }
+            return (url, width)
         }
     }
 }
