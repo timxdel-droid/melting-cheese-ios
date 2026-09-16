@@ -32,6 +32,17 @@ final class MenuViewModel: ObservableObject {
             sections = cached
             state = .loaded
             lastUpdated = MenuCache.shared.savedAt
+            warmImages()
+        }
+    }
+
+    /// Fills the photo cache in the background so nothing on screen waits
+    /// for a download. Called whenever the catalogue is (re)populated;
+    /// the prefetcher skips anything it already has.
+    private func warmImages() {
+        let products = sections.flatMap(\.products)
+        Task.detached(priority: .utility) {
+            await ImagePrefetcher.shared.warm(products)
         }
     }
 
@@ -179,6 +190,7 @@ final class MenuViewModel: ObservableObject {
             case .fresh(let fresh):
                 sections = fresh
                 lastUpdated = Date()
+                warmImages()
             case .unchanged:
                 lastUpdated = Date()
             }
