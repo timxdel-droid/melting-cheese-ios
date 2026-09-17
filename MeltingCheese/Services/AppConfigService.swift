@@ -11,15 +11,12 @@ struct AppConfig: Codable, Equatable {
     var defaultEvent: String?
     var events: [AppConfigEvent]?
     var banners: [AppConfigBanner]?
-    /// Build gating published from ROS. Absent means nothing is gated.
-    var releases: AppReleases?
 
     enum CodingKeys: String, CodingKey {
         case version
         case updatedAt = "updated_at"
         case defaultEvent = "default_event"
         case events, banners
-        case releases = "app"
     }
 
     /// The event the apps should render. Falls back to the first published one.
@@ -41,8 +38,6 @@ struct AppConfig: Codable, Equatable {
 struct AppConfigEvent: Codable, Equatable {
     var id: String
     var name: String?
-    /// Where the event physically is, shown under the name in the picker.
-    var venue: String?
     var layout: AppConfigLayout?
 }
 
@@ -99,6 +94,39 @@ struct AppConfigBanner: Codable, Equatable, Identifiable {
     }
 }
 
+/// What this copy of the app is, taken from the bundle rather than written
+/// down anywhere — so it cannot disagree with the binary it describes.
+///
+/// Sent on every config request. The server keeps the highest build it has
+/// been told about, which is how the ROS console shows the real TestFlight
+/// number without anyone typing it and without the build pipeline holding a
+/// token. Nothing here is secret: it is the same version string shown on the
+/// App Store listing.
+enum AppBuild {
+    /// CFBundleVersion — the number agvtool sets during the build, matching
+    /// what TestFlight displays.
+    static let number: String = {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+    }()
+
+    /// CFBundleShortVersionString, e.g. "1.1.0".
+    static let versionName: String = {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }()
+
+    /// Stamps a request with what is asking. A simulator or a misconfigured
+    /// build with no CFBundleVersion sends nothing rather than a zero, which
+    /// the server would only ignore anyway.
+    static func stamp(_ request: inout URLRequest) {
+        guard !number.isEmpty else { return }
+        request.setValue("ios", forHTTPHeaderField: "X-MC-App-Platform")
+        request.setValue(number, forHTTPHeaderField: "X-MC-App-Build")
+        if !versionName.isEmpty {
+            request.setValue(versionName, forHTTPHeaderField: "X-MC-App-Version")
+        }
+    }
+}
+
 /// Reads the published config from the same host the menu comes from.
 /// Public and read-only: publishing is the ROS console's job, not the app's.
 actor AppConfigService {
@@ -125,6 +153,7 @@ actor AppConfigService {
         var request = URLRequest(url: url)
         request.timeoutInterval = 12
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        AppBuild.stamp(&request)
         if let etag = AppConfigCache.shared.readETag() {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
@@ -146,42 +175,5 @@ actor AppConfigService {
 
         AppConfigCache.shared.write(data, etag: http.value(forHTTPHeaderField: "ETag"))
         return config
-    }
-}
-
-
-/// Per-platform build gating. Both sides optional so a config published before
-/// this existed still decodes cleanly.
-struct AppReleases: Codable, Equatable {
-    var ios: AppRelease?
-    var android: AppRelease?
-}
-
-struct AppRelease: Codable, Equatable {
-    var minBuild: Int?
-    var latestBuild: Int?
-    var versionName: String?
-    /// Named apk_url on the server because Android needs a file there. On iOS
-    /// it carries a link instead, normally the public TestFlight invite.
-    var updateURL: String?
-    var notes: String?
-
-    enum CodingKeys: String, CodingKey {
-        case minBuild = "min_build"
-        case latestBuild = "latest_build"
-        case versionName = "version_name"
-        case updateURL = "apk_url"
-        case notes
-    }
-
-    /// Nil or zero gates nothing. A missing config must never lock anyone out.
-    func mustUpdate(current: Int) -> Bool {
-        guard let minBuild, minBuild > 0 else { return false }
-        return current < minBuild
-    }
-
-    func canUpdate(current: Int) -> Bool {
-        guard let latestBuild, latestBuild > 0 else { return false }
-        return current < latestBuild
     }
 }
