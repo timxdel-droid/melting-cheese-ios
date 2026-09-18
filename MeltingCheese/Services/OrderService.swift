@@ -137,6 +137,12 @@ actor OrderService {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Tells the server this build asks for a contact number, so it can
+        // insist on one. Builds that predate the field do not send this and
+        // keep working — without it the server would start failing checkout
+        // on every copy of the app already installed.
+        request.setValue("1", forHTTPHeaderField: "X-MC-Collects-Phone")
+
         request.httpBody = try JSONEncoder().encode(payload)
 
         let data: Data
