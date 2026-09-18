@@ -24,9 +24,11 @@ struct CheckoutView: View {
     @State private var failure: String?
     @FocusState private var phoneFocused: Bool
 
-    /// A payment link can't be sent without somewhere to send it.
+    /// We ring or text when the food is ready, so a contact number is
+    /// required on every order. Seven digits is the shortest real number
+    /// in use anywhere; the server normalises and checks the rest.
     private var phoneMissing: Bool {
-        method.needsPhoneNumber &&
+        // Every order needs one now, not just the payment-link ones:
         phone.trimmingCharacters(in: .whitespaces).count < 7
     }
 
