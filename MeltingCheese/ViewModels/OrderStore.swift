@@ -35,7 +35,7 @@ enum PaymentMethod: String, CaseIterable, Identifiable, Hashable {
 
     var icon: String {
         switch self {
-        case .applePay: return "apple.logo"
+        case .applePay: return "wave.3.right"
         case .card: return "creditcard.fill"
         case .paymentLink: return "link"
         case .atTruck: return "banknote"
