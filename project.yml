@@ -34,7 +34,13 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        UIUserInterfaceStyle: Dark
+        # Locked to Light because the palette in Theme.swift is a fixed light
+        # one. This used to say Dark, which left every system-drawn surface —
+        # alerts, action sheets, the keyboard, text selection — rendering dark
+        # against a near-white app. Following the system instead would break
+        # the same way for anyone with dark mode on, since the brand colours
+        # are hardcoded rather than semantic.
+        UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
