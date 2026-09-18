@@ -24,11 +24,10 @@ struct CheckoutView: View {
     @State private var failure: String?
     @FocusState private var phoneFocused: Bool
 
-    /// We ring or text when the food is ready, so a contact number is
-    /// required on every order. Seven digits is the shortest real number
-    /// in use anywhere; the server normalises and checks the rest.
+    /// A contact number is required on every order. Seven digits is the
+    /// shortest real number in use anywhere; the server normalises the rest
+    /// and does the proper range check.
     private var phoneMissing: Bool {
-        // Every order needs one now, not just the payment-link ones:
         phone.trimmingCharacters(in: .whitespaces).count < 7
     }
 
@@ -63,6 +62,8 @@ struct CheckoutView: View {
                             .background(Brand.surface)
                             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     }
+
+                    contactBlock
 
                     paymentSection
                     summary
@@ -102,6 +103,42 @@ struct CheckoutView: View {
         }
     }
 
+    // MARK: Contact number
+
+    /// Asked for on every order, so it lives in the form itself rather than
+    /// inside the payment-link branch where it used to sit. That mattered:
+    /// once the number became required for all orders but the field was
+    /// still only drawn for payment links, anyone choosing another method
+    /// had a permanently disabled Place Order button and no way to fix it.
+    ///
+    /// The line under the field says what the number is for. Somebody handing
+    /// over a phone number is entitled to know why it is being asked for, and
+    /// a field that demands one without explanation gets abandoned.
+    private var contactBlock: some View {
+        block(title: "Contact number") {
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("+971 50 123 4567", text: $phone)
+                    .keyboardType(.phonePad)
+                    .textContentType(.telephoneNumber)
+                    .focused($phoneFocused)
+                    .font(.system(size: 13))
+                    .padding(11)
+                    .background(Brand.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(phoneMissing ? Brand.orange : Brand.line, lineWidth: 1)
+                    )
+
+                Text(phoneMissing
+                     ? "We need a number to put on the order."
+                     : "Saved with your order so we recognise you next time. We won't send you offers unless you ask.")
+                    .font(.system(size: 10.5))
+                    .foregroundColor(phoneMissing ? Brand.orange : Brand.textMuted)
+            }
+        }
+    }
+
     // MARK: Placing the order
 
     /// Sends the basket, and only records the order once the store has
@@ -116,18 +153,20 @@ struct CheckoutView: View {
         defer { submitting = false }
 
         if !name.trimmingCharacters(in: .whitespaces).isEmpty { guestName = name }
-        if method.needsPhoneNumber { guestPhone = phone }
+        // Remembered for next time regardless of payment method, now that
+        // every order carries a number.
+        guestPhone = phone
 
         do {
             let confirmed = try await OrderService.shared.submit(
                 lines: order.lines,
                 event: menu.currentEvent?.id,
                 name: name,
-                phone: method.needsPhoneNumber ? phone : nil,
+                phone: phone,
                 paymentMethod: method)
 
             placed = order.placeOrder(method: method,
-                                      phone: method.needsPhoneNumber ? phone : nil,
+                                      phone: phone,
                                       serverOrderID: confirmed.orderID,
                                       serverCode: confirmed.collectionCode)
         } catch {
@@ -174,34 +213,17 @@ struct CheckoutView: View {
                     }
                     .buttonStyle(.plain)
 
-                    // The link needs a destination, so ask for it inline.
+                    // The number itself is collected above now, so this only
+                    // has to say where the link is going.
                     if option == .paymentLink && method == .paymentLink {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Mobile number for the link")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(Brand.textSecondary)
-
-                            TextField("+971 50 123 4567", text: $phone)
-                                .keyboardType(.phonePad)
-                                .textContentType(.telephoneNumber)
-                                .focused($phoneFocused)
-                                .font(.system(size: 13))
-                                .padding(11)
-                                .background(Brand.bg)
-                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                        .stroke(phoneMissing ? Brand.orange : Brand.line, lineWidth: 1)
-                                )
-
-                            Text(phoneMissing
-                                 ? "Enter the number the payment link should go to."
-                                 : "We'll text the link to this number.")
-                                .font(.system(size: 10.5))
-                                .foregroundColor(phoneMissing ? Brand.orange : Brand.textMuted)
-                        }
-                        .padding(.bottom, 12)
-                        .transition(.opacity)
+                        Text(phoneMissing
+                             ? "Add a contact number above and we'll text the link to it."
+                             : "We'll text the link to \(phone).")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(phoneMissing ? Brand.orange : Brand.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.bottom, 12)
+                            .transition(.opacity)
                     }
 
                     if option != PaymentMethod.allCases.last {
