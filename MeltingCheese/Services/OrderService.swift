@@ -86,6 +86,10 @@ actor OrderService {
         let event: String
         let platform: String
         let paymentMethod: String
+        /// Always sent, including when it is false. "Asked and said no" is a
+        /// different fact from "never asked", and only the first should stop
+        /// us putting the question in front of somebody again.
+        let marketingOptIn: Bool
 
         enum CodingKeys: String, CodingKey {
             case items
@@ -93,6 +97,7 @@ actor OrderService {
             case customerPhone = "customer_phone"
             case event, platform
             case paymentMethod = "payment_method"
+            case marketingOptIn = "marketing_opt_in"
         }
     }
 
@@ -112,7 +117,8 @@ actor OrderService {
                 event: String?,
                 name: String,
                 phone: String?,
-                paymentMethod: PaymentMethod) async throws -> PlacedOrder {
+                paymentMethod: PaymentMethod,
+                wantsOffers: Bool = false) async throws -> PlacedOrder {
 
         guard !lines.isEmpty else {
             throw OrderSubmissionError.rejected("Your basket is empty.")
@@ -129,7 +135,8 @@ actor OrderService {
             customerPhone: (phone ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             event: event ?? "",
             platform: "ios",
-            paymentMethod: paymentMethod.wireValue
+            paymentMethod: paymentMethod.wireValue,
+            marketingOptIn: wantsOffers
         )
 
         var request = URLRequest(url: url)
@@ -137,6 +144,17 @@ actor OrderService {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Tells the server this build asks for a contact number, so it can
+        // insist on one. Builds that predate the field do not send this and
+        // keep working — without it the server would start failing checkout
+        // on every copy of the app already installed.
+        request.setValue("1", forHTTPHeaderField: "X-MC-Collects-Phone")
+        // Which app and build is asking. The server refuses to record a
+        // marketing agreement it cannot attribute, because the wording shown
+        // lives in a particular build and that is the only way to recover
+        // what somebody actually agreed to.
+        AppBuild.stamp(&request)
+
         request.httpBody = try JSONEncoder().encode(payload)
 
         let data: Data
