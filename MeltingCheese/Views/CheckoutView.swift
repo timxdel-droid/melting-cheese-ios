@@ -24,6 +24,13 @@ struct CheckoutView: View {
     @State private var failure: String?
     @FocusState private var phoneFocused: Bool
 
+    /// Offers are a separate decision from placing an order, so this starts
+    /// off and is never remembered between orders. Pre-ticking it, or
+    /// carrying a previous yes forward, would make the agreement something
+    /// the customer drifted into rather than chose — and consent that was
+    /// not freely given is not consent.
+    @State private var wantsOffers = false
+
     /// A contact number is required on every order. Seven digits is the
     /// shortest real number in use anywhere; the server normalises the rest
     /// and does the proper range check.
@@ -135,6 +142,25 @@ struct CheckoutView: View {
                      : "Saved with your order so we recognise you next time. We won't send you offers unless you ask.")
                     .font(.system(size: 10.5))
                     .foregroundColor(phoneMissing ? Brand.orange : Brand.textMuted)
+
+                Divider().overlay(Brand.line).padding(.vertical, 4)
+
+                // Deliberately its own control rather than fine print under
+                // the field. The order cannot be placed without a number, so
+                // agreement to be marketed to has to be separately refusable
+                // — otherwise it rides along on a box someone had to tick to
+                // get their food, and that is not a free choice.
+                Toggle(isOn: $wantsOffers) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Send me offers")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(Brand.textPrimary)
+                        Text("Occasional deals and new items. Leave this off and your number is only used for your order.")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(Brand.textMuted)
+                    }
+                }
+                .toggleStyle(SwitchToggleStyle(tint: Brand.orange))
             }
         }
     }
@@ -163,7 +189,8 @@ struct CheckoutView: View {
                 event: menu.currentEvent?.id,
                 name: name,
                 phone: phone,
-                paymentMethod: method)
+                paymentMethod: method,
+                wantsOffers: wantsOffers)
 
             placed = order.placeOrder(method: method,
                                       phone: phone,
