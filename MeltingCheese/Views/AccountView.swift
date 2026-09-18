@@ -87,6 +87,10 @@ struct AccountView: View {
                 SettingsRow(icon: "calendar", title: "Where we're parked next")
             }
             Divider().overlay(Brand.line)
+            Link(destination: URL(string: "https://dev2.meltingcheese.food/privacy-policy/")!) {
+                SettingsRow(icon: "hand.raised", title: "Privacy Policy")
+            }
+            Divider().overlay(Brand.line)
             Link(destination: URL(string: "mailto:hello@meltingcheese.ae")!) {
                 SettingsRow(icon: "questionmark.circle", title: "Help & Support")
             }
